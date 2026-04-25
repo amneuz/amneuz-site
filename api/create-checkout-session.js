@@ -47,7 +47,7 @@ module.exports = async function handler(req, res) {
 
     res.status(200).json({ url: session.url });
 
-} catch (err) {
+  } catch (err) {
 
   console.error('Stripe error:', err);
 
@@ -59,6 +59,9 @@ module.exports = async function handler(req, res) {
 
   });
 
-}
+
+    
+
+  }
 
 }
