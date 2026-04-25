@@ -1,3 +1,5 @@
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 const Stripe = require('stripe');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
@@ -80,6 +82,39 @@ module.exports = async (req, res) => {
         downloads: 0
       };
     });
+
+    const baseUrl = 'https://amneuz-site.vercel.app';
+
+const downloadLinks = trackIds.map(function(trackId) {
+
+  return `${baseUrl}/api/download?token=${downloadToken}&trackId=${trackId}`;
+
+});
+
+await resend.emails.send({
+
+  from: 'Amneuz <onboarding@resend.dev>',
+
+  to: email,
+
+  subject: 'Your tracks are ready',
+
+  html: `
+
+    <h2>Your download is ready</h2>
+
+    <p>Thanks for your purchase.</p>
+
+    <ul>
+
+      ${downloadLinks.map(link => `<li><a href="${link}">${link}</a></li>`).join('')}
+
+    </ul>
+
+  `
+
+});
+
 
     const { error: itemsError } = await supabase
       .from('order_items')
