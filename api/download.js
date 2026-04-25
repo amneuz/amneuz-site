@@ -6,75 +6,84 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-module.exports = async (req, res) => {
+module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { token, trackId } = req.query;
+  const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+  const trackId = typeof req.query.trackId === 'string' ? req.query.trackId.trim() : '';
 
   if (!token || !trackId) {
-    return res.status(400).json({ error: 'Missing parameters' });
+    return res.status(400).json({ error: 'Invalid request' });
   }
 
-  // 1. Buscar orden por token
+  const track = tracks.find(function(item) {
+    return item.id === trackId;
+  });
+
+  if (!track || !track.storagePath || !track.filename) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .select('*')
+    .select('id, max_downloads, expires_at')
     .eq('download_token', token)
     .single();
 
   if (orderError || !order) {
-    return res.status(400).json({ error: 'Invalid download link' });
+    return res.status(404).json({ error: 'Invalid download link' });
   }
 
-  // 2. Validar que el track pertenece a la orden
+  if (order.expires_at && new Date(order.expires_at).getTime() < Date.now()) {
+    return res.status(403).json({ error: 'Download link expired' });
+  }
+
   const { data: item, error: itemError } = await supabase
     .from('order_items')
-    .select('*')
+    .select('id, downloads')
     .eq('order_id', order.id)
     .eq('track_id', trackId)
     .single();
 
   if (itemError || !item) {
-    return res.status(403).json({ error: 'Track not purchased' });
+    return res.status(403).json({ error: 'Track not available for this order' });
   }
 
-  // 3. Obtener info del track
-  const track = tracks.find(t => t.id === trackId);
-
-  if (!track) {
-    return res.status(404).json({ error: 'Track not found' });
+  if (item.downloads >= order.max_downloads) {
+    return res.status(403).json({ error: 'Download limit reached' });
   }
 
-  // 4. Generar signed URL (válido por 60s)
+  const { error: updateError } = await supabase
+    .from('order_items')
+    .update({ downloads: item.downloads + 1 })
+    .eq('id', item.id);
+
+  if (updateError) {
+    return res.status(500).json({ error: 'Unable to process download' });
+  }
+
   const { data: signedUrlData, error: urlError } = await supabase
     .storage
     .from('tracks')
     .createSignedUrl(track.storagePath, 60);
 
-  if (urlError) {
-    return res.status(500).json({ error: 'File access error' });
+  if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
+    return res.status(500).json({ error: 'Unable to access file' });
   }
-
-  // 5. Redirigir con nombre de archivo correcto
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename="${track.filename}"`
-  );
 
   const fileResponse = await fetch(signedUrlData.signedUrl);
 
-if (!fileResponse.ok) {
-  return res.status(500).json({ error: 'Unable to retrieve file' });
-}
+  if (!fileResponse.ok) {
+    return res.status(500).json({ error: 'Unable to retrieve file' });
+  }
 
-const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
+  const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
 
-res.setHeader('Content-Type', fileResponse.headers.get('content-type') || 'application/octet-stream');
-res.setHeader('Content-Disposition', `attachment; filename="${track.filename}"`);
-res.setHeader('Content-Length', fileBuffer.length);
+  res.setHeader('Content-Type', fileResponse.headers.get('content-type') || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${track.filename}"`);
+  res.setHeader('Content-Length', fileBuffer.length);
 
-return res.status(200).send(fileBuffer);
-
+  return res.status(200).send(fileBuffer);
 };
