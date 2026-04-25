@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
     const downloadPageUrl = `${baseUrl}/success.html?session_id=${session.id}`;
 
     try {
-      const emailResult = await resend.emails.send({
+      await resend.emails.send({
         from: 'Amneuz <onboarding@resend.dev>',
         to: email,
         subject: 'Your tracks are ready',
@@ -105,10 +105,8 @@ module.exports = async (req, res) => {
           <p><a href="${downloadPageUrl}">Open your download page</a></p>
         `
       });
-
-      console.log('Resend result:', emailResult);
     } catch (emailError) {
-      console.error('Resend error:', emailError);
+      console.error('Email failed:', emailError.message || emailError);
     }
   }
 

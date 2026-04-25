@@ -24,82 +24,89 @@ module.exports = async function handler(req, res) {
 
     : '';
 
-  if (!sessionId || !sessionId.startsWith('cs_')) {
+  if (!sessionId || !sessionId.startsWith('cs_') || sessionId.length > 255) {
 
     return res.status(400).json({ error: 'Invalid request' });
 
   }
 
-  const { data: order, error: orderError } = await supabase
+  try {
 
-    .from('orders')
+    const { data: order, error: orderError } = await supabase
 
-    .select('id, download_token, max_downloads, email')
+      .from('orders')
 
-    .eq('session_id', sessionId)
+      .select('id, download_token, max_downloads, email')
 
-    .single();
+      .eq('session_id', sessionId)
 
-  if (orderError || !order) {
+      .single();
 
-    return res.status(404).json({ error: 'Order not found' });
+    if (orderError || !order) {
 
-  }
+      return res.status(404).json({ error: 'Order not found' });
 
-  const { data: items, error: itemsError } = await supabase
+    }
 
-    .from('order_items')
+    const { data: items, error: itemsError } = await supabase
 
-    .select('track_id, downloads')
+      .from('order_items')
 
-    .eq('order_id', order.id);
+      .select('track_id, downloads')
 
-  if (itemsError) {
+      .eq('order_id', order.id);
+
+    if (itemsError) {
+
+      return res.status(500).json({ error: 'Unable to load order' });
+
+    }
+
+    const purchasedTracks = items.map(function(item) {
+
+      const track = tracks.find(function(t) {
+
+        return t.id === item.track_id;
+
+      });
+
+      return {
+
+        id: item.track_id,
+
+        title: track ? track.title : item.track_id,
+
+        cover: track ? track.cover : '',
+
+        genre: track ? track.genre : '',
+
+        key: track ? track.key : '',
+
+        duration: track ? track.duration : '',
+
+        downloads: item.downloads,
+
+        maxDownloads: order.max_downloads,
+
+        downloadsRemaining: Math.max(order.max_downloads - item.downloads, 0),
+
+        downloadUrl: `/api/download?token=${order.download_token}&trackId=${item.track_id}`
+
+      };
+
+    });
+
+    return res.status(200).json({
+
+      email: order.email,
+
+      tracks: purchasedTracks
+
+    });
+
+  } catch (error) {
 
     return res.status(500).json({ error: 'Unable to load order' });
 
   }
-
-  const purchasedTracks = items.map(function(item) {
-
-    const track = tracks.find(function(t) {
-
-      return t.id === item.track_id;
-
-    });
-
-    return {
-
-      id: item.track_id,
-
-      title: track ? track.title : item.track_id,
-
-      cover: track ? track.cover : '',
-
-      genre: track ? track.genre : '',
-
-      key: track ? track.key : '',
-
-      duration: track ? track.duration : '',
-
-      downloads: item.downloads,
-
-      maxDownloads: order.max_downloads,
-
-      downloadsRemaining: Math.max(order.max_downloads - item.downloads, 0),
-
-      downloadUrl: `/api/download?token=${order.download_token}&trackId=${item.track_id}`
-
-    };
-
-  });
-
-  return res.status(200).json({
-
-    email: order.email,
-
-    tracks: purchasedTracks
-
-  });
-
 };
