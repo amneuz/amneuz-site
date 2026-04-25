@@ -38,6 +38,22 @@ module.exports = async (req, res) => {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
+
+    const { data: existingOrder, error: existingOrderError } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('session_id', session.id)
+      .maybeSingle();
+
+    if (existingOrderError) {
+      console.error('Order lookup error:', existingOrderError.message || existingOrderError);
+      return res.status(500).json({ error: 'Unable to process webhook' });
+    }
+
+    if (existingOrder) {
+      return res.status(200).json({ received: true });
+    }
+
     const email = session.customer_details?.email || session.customer_email;
 
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id);

@@ -6,9 +6,40 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const rateLimitWindowMs = 60 * 1000;
+const rateLimitMaxRequests = 12;
+const rateLimitMap = new Map();
+
+function getClientIp(req) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+
+  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+    return forwardedFor.split(',')[0].trim() || 'unknown';
+  }
+
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now - entry.startedAt >= rateLimitWindowMs) {
+    rateLimitMap.set(ip, { count: 1, startedAt: now });
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > rateLimitMaxRequests;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  if (isRateLimited(getClientIp(req))) {
+    return res.status(429).json({ error: 'Too many requests' });
   }
 
   const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
