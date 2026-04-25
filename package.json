@@ -2,8 +2,11 @@
 
   "dependencies": {
 
+    "@supabase/supabase-js": "^2.104.1",
+
     "stripe": "^17.7.0"
 
   }
 
 }
+
