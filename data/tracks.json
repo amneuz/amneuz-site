@@ -1,14 +1,71 @@
 [
+
   {
+
     "id": "001",
+
     "storagePath": "tracks-001.wav",
+
     "filename": "Hijo de la Luna - Amneuz.wav",
-    "stripePriceId": "price_1TPwzz1jkE4qsmeFobhhYg9a"
+
+    "title": "Mecano — Hijo de la Luna",
+
+    "stripePriceId": "price_1TPwzz1jkE4qsmeFobhhYg9a",
+
+    "category": "remixes",
+
+    "genre": "Melodic Techno",
+
+    "key": "D# Minor",
+
+    "duration": "0:32",
+
+    "release": "2026",
+
+    "cover": "assets/images/001-cover.jpg",
+
+    "preview": "assets/audio/001-preview.wav",
+
+    "downloadUrl": "https://soundcloud.com/amneuz",
+
+    "YouTube": "https://youtu.be/z9ynFILvaZA",
+
+    "soundcloud": "https://soundcloud.com/amneuz"
+
   },
+
   {
+
     "id": "002",
+
     "storagePath": "tracks-002.wav",
+
     "filename": "Alguna Vez - Amneuz & Adrian Pedroza.wav",
-    "stripePriceId": "price_1TPrGS1jkE4qsmeFU8tUEfYH"
+
+    "title": "Amneuz & Adrian Pedroza — Alguna Vez",
+
+    "stripePriceId": "price_1TPrGS1jkE4qsmeFU8tUEfYH",
+
+    "category": "remixes",
+
+    "genre": "Afrohouse",
+
+    "key": "D# Minor",
+
+    "duration": "0:32",
+
+    "release": "2026",
+
+    "cover": "assets/images/002-cover.jpg",
+
+    "preview": "assets/audio/002-preview.wav",
+
+    "downloadUrl": "https://soundcloud.com/amneuz",
+
+    "YouTube": "https://youtu.be/vkWJIL7Ri40",
+
+    "soundcloud": "https://soundcloud.com/amneuz"
+
   }
+
 ]
