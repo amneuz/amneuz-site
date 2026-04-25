@@ -1,3 +1,45 @@
-<h1>Payment Successful 🎉</h1>
+<!DOCTYPE html>
 
-<p>Gracias por tu compra.</p>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Payment Successful — AMNEUZ</title>
+
+</head>
+
+<body style="background:#050505;color:#f4f4f4;font-family:Arial,sans-serif;padding:40px;">
+
+  <h1>Thank you for your purchase.</h1>
+
+  <p>Your payment was successful.</p>
+
+  <p id="sessionText">Loading order...</p>
+
+  <script>
+
+    const params = new URLSearchParams(window.location.search);
+
+    const sessionId = params.get('session_id');
+
+    const sessionText = document.getElementById('sessionText');
+
+    if (sessionId) {
+
+      sessionText.textContent = 'Order session: ' + sessionId;
+
+    } else {
+
+      sessionText.textContent = 'No session ID found.';
+
+    }
+
+  </script>
+
+</body>
+
+</html>
