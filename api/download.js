@@ -63,5 +63,18 @@ module.exports = async (req, res) => {
     `attachment; filename="${track.filename}"`
   );
 
-  return res.redirect(signedUrlData.signedUrl);
+  const fileResponse = await fetch(signedUrlData.signedUrl);
+
+if (!fileResponse.ok) {
+  return res.status(500).json({ error: 'Unable to retrieve file' });
+}
+
+const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
+
+res.setHeader('Content-Type', fileResponse.headers.get('content-type') || 'application/octet-stream');
+res.setHeader('Content-Disposition', `attachment; filename="${track.filename}"`);
+res.setHeader('Content-Length', fileBuffer.length);
+
+return res.status(200).send(fileBuffer);
+
 };
