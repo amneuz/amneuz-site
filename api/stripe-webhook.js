@@ -1,12 +1,11 @@
-const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
 const Stripe = require('stripe');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
 const tracks = require('../data/tracks.json');
-console.log('WEBHOOK V2');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -33,7 +32,7 @@ module.exports = async (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error('Webhook signature verification failed.', err.message);
+    console.error('Webhook signature verification failed:', err.message);
     return res.status(400).send('Webhook Error');
   }
 
@@ -47,13 +46,13 @@ module.exports = async (req, res) => {
       return item.price.id;
     });
 
-    const trackIds = tracks
-      .filter(function(track) {
-        return priceIds.includes(track.stripePriceId);
-      })
-      .map(function(track) {
-        return track.id;
-      });
+    const purchasedTracks = tracks.filter(function(track) {
+      return priceIds.includes(track.stripePriceId);
+    });
+
+    const trackIds = purchasedTracks.map(function(track) {
+      return track.id;
+    });
 
     const downloadToken = crypto.randomBytes(24).toString('hex');
 
@@ -83,39 +82,6 @@ module.exports = async (req, res) => {
       };
     });
 
-    const baseUrl = 'https://amneuz-site.vercel.app';
-
-const downloadLinks = trackIds.map(function(trackId) {
-
-  return `${baseUrl}/api/download?token=${downloadToken}&trackId=${trackId}`;
-
-});
-
-await resend.emails.send({
-
-  from: 'Amneuz <onboarding@resend.dev>',
-
-  to: email,
-
-  subject: 'Your tracks are ready',
-
-  html: `
-
-    <h2>Your download is ready</h2>
-
-    <p>Thanks for your purchase.</p>
-
-    <ul>
-
-      ${downloadLinks.map(link => `<li><a href="${link}">${link}</a></li>`).join('')}
-
-    </ul>
-
-  `
-
-});
-
-
     const { error: itemsError } = await supabase
       .from('order_items')
       .insert(itemsToInsert);
@@ -123,6 +89,36 @@ await resend.emails.send({
     if (itemsError) {
       console.error('Items insert error:', itemsError);
       return res.status(500).json({ error: 'Items insert failed' });
+    }
+
+    const baseUrl = 'https://amneuz-site.vercel.app';
+
+    const downloadLinks = purchasedTracks.map(function(track) {
+      return {
+        title: track.title,
+        url: `${baseUrl}/api/download?token=${downloadToken}&trackId=${track.id}`
+      };
+    });
+
+    try {
+      const emailResult = await resend.emails.send({
+        from: 'Amneuz <onboarding@resend.dev>',
+        to: email,
+        subject: 'Your tracks are ready',
+        html: `
+          <h2>Your tracks are ready</h2>
+          <p>Thanks for your purchase.</p>
+          <ul>
+            ${downloadLinks.map(function(link) {
+              return `<li><a href="${link.url}">${link.title}</a></li>`;
+            }).join('')}
+          </ul>
+        `
+      });
+
+      console.log('Resend result:', emailResult);
+    } catch (emailError) {
+      console.error('Resend error:', emailError);
     }
   }
 
@@ -137,3 +133,4 @@ const getRawBody = (req) =>
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+  
