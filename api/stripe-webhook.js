@@ -19,6 +19,10 @@ module.exports.config = {
 };
 
 module.exports = async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const sig = req.headers['stripe-signature'];
 
   let event;
@@ -32,13 +36,17 @@ module.exports = async (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
+    console.error('Webhook verification failed:', err.message);
     return res.status(400).send('Webhook Error');
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
+  if (event.type !== 'checkout.session.completed') {
+    return res.status(200).json({ received: true });
+  }
 
+  const session = event.data.object;
+
+  try {
     const { data: existingOrder, error: existingOrderError } = await supabase
       .from('orders')
       .select('id')
@@ -56,15 +64,25 @@ module.exports = async (req, res) => {
 
     const email = session.customer_details?.email || session.customer_email;
 
+    if (!email) {
+      return res.status(500).json({ error: 'Unable to process webhook' });
+    }
+
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
 
-    const priceIds = lineItems.data.map(function(item) {
-      return item.price.id;
-    });
+    const priceIds = lineItems.data
+      .map(function(item) {
+        return item.price && item.price.id;
+      })
+      .filter(Boolean);
 
     const purchasedTracks = tracks.filter(function(track) {
       return priceIds.includes(track.stripePriceId);
     });
+
+    if (!purchasedTracks.length) {
+      return res.status(500).json({ error: 'Unable to process webhook' });
+    }
 
     const trackIds = purchasedTracks.map(function(track) {
       return track.id;
@@ -86,8 +104,8 @@ module.exports = async (req, res) => {
       .single();
 
     if (orderError) {
-      console.error('Order insert error:', orderError);
-      return res.status(500).json({ error: 'Order insert failed' });
+      console.error('Order insert error:', orderError.message || orderError);
+      return res.status(500).json({ error: 'Unable to process webhook' });
     }
 
     const itemsToInsert = trackIds.map(function(trackId) {
@@ -103,11 +121,11 @@ module.exports = async (req, res) => {
       .insert(itemsToInsert);
 
     if (itemsError) {
-      console.error('Items insert error:', itemsError);
-      return res.status(500).json({ error: 'Items insert failed' });
+      console.error('Items insert error:', itemsError.message || itemsError);
+      return res.status(500).json({ error: 'Unable to process webhook' });
     }
 
-    const baseUrl = 'https://amneuz-site.vercel.app';
+    const baseUrl = 'https://amneuz.com';
     const downloadPageUrl = `${baseUrl}/success.html?session_id=${session.id}`;
 
     try {
@@ -124,9 +142,12 @@ module.exports = async (req, res) => {
     } catch (emailError) {
       console.error('Email failed:', emailError.message || emailError);
     }
-  }
 
-  return res.status(200).json({ received: true });
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('Webhook processing error:', err.message || err);
+    return res.status(500).json({ error: 'Unable to process webhook' });
+  }
 };
 
 const getRawBody = (req) =>
@@ -137,4 +158,3 @@ const getRawBody = (req) =>
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
-  
