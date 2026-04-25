@@ -1,14 +1,5 @@
 {
-
   "dependencies": {
-
-    "@supabase/supabase-js": "^2.104.1",
-
-    "resend": "^6.12.2",
-
     "stripe": "^17.7.0"
-
   }
-
 }
-

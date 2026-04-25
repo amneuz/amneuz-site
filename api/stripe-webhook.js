@@ -92,13 +92,7 @@ module.exports = async (req, res) => {
     }
 
     const baseUrl = 'https://amneuz-site.vercel.app';
-
-    const downloadLinks = purchasedTracks.map(function(track) {
-      return {
-        title: track.title,
-        url: `${baseUrl}/api/download?token=${downloadToken}&trackId=${track.id}`
-      };
-    });
+    const downloadPageUrl = `${baseUrl}/success.html?session_id=${session.id}`;
 
     try {
       const emailResult = await resend.emails.send({
@@ -107,12 +101,8 @@ module.exports = async (req, res) => {
         subject: 'Your tracks are ready',
         html: `
           <h2>Your tracks are ready</h2>
-          <p>Thanks for your purchase.</p>
-          <ul>
-            ${downloadLinks.map(function(link) {
-              return `<li><a href="${link.url}">${link.title}</a></li>`;
-            }).join('')}
-          </ul>
+          <p>Your tracks are ready. Access your private download page below.</p>
+          <p><a href="${downloadPageUrl}">Open your download page</a></p>
         `
       });
 
