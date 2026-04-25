@@ -5,10 +5,27 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const validPriceIds = tracks
   .map(function(track) { return track.stripePriceId; })
   .filter(Boolean);
+const rateLimitStore = new Map();
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+  var forwardedFor = req.headers['x-forwarded-for'];
+  var clientIp = (typeof forwardedFor === 'string' && forwardedFor.split(',')[0].trim()) ||
+    (req.socket && req.socket.remoteAddress) ||
+    'unknown';
+  var now = Date.now();
+  var existingRateLimit = rateLimitStore.get(clientIp);
+  if (!existingRateLimit || now - existingRateLimit.startedAt >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(clientIp, { count: 1, startedAt: now });
+  } else {
+    existingRateLimit.count += 1;
+    if (existingRateLimit.count > RATE_LIMIT_MAX) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
   }
   try {
     var body;
