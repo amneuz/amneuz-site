@@ -47,15 +47,43 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid checkout items' });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      line_items: items.map(item => ({
-        price: item.priceId,
-        quantity: 1
-      })),
-      success_url: `${req.headers.origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.origin}/cancel.html`
-    });
+    const selectedTracks = tracks.filter(function(track) {
+
+  return items.some(function(item) {
+
+    return item.priceId === track.stripePriceId;
+
+  });
+
+});
+
+const session = await stripe.checkout.sessions.create({
+
+  mode: 'payment',
+
+  line_items: items.map(item => ({
+
+    price: item.priceId,
+
+    quantity: 1
+
+  })),
+
+  success_url: `${req.headers.origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+
+  cancel_url: `${req.headers.origin}/cancel.html`,
+
+  metadata: {
+
+    trackIds: selectedTracks.map(function(track) {
+
+      return track.id;
+
+    }).join(',')
+
+  }
+
+});
 
     res.status(200).json({ url: session.url });
   } catch (err) {
