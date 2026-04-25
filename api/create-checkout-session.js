@@ -1,8 +1,9 @@
-import Stripe from 'stripe';
+const Stripe = require('stripe');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+
 
   if (req.method !== 'POST') {
 
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
 
       })),
 
-      success_url: `${req.headers.origin}/success.html`,
+      success_url: `${req.headers.origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
 
       cancel_url: `${req.headers.origin}/cancel.html`
 
