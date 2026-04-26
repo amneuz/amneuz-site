@@ -130,8 +130,9 @@ module.exports = async (req, res) => {
 
     try {
       await resend.emails.send({
-        from: 'Amneuz <onboarding@resend.dev>',
+        from: 'AMNEUZ Music <music@amneuz.com>',
         to: email,
+        reply_to: 'music@amneuz.com',
         subject: 'Your tracks are ready',
         html: `
           <h2>Your tracks are ready</h2>
