@@ -237,8 +237,10 @@ module.exports = async (req, res) => {
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;border-collapse:collapse;">
                     <tr>
                       <td align="center" style="padding:24px 0 34px;">
-                        <div style="font-size:46px;line-height:1;letter-spacing:9px;font-weight:700;color:#ffffff;">AMNEUZ</div>
-                      </td>
+
+  <div style="font-size:46px;line-height:.82;letter-spacing:4px;font-weight:700;color:#ffffff;margin-right:-4px;">AMNEUZ</div>
+
+</td>
                     </tr>
                     <tr>
                       <td style="border:1px solid #242424;background:#0b0b0b;border-radius:18px;padding:34px 30px;box-shadow:0 24px 60px rgba(0,0,0,0.45);">
@@ -278,7 +280,7 @@ module.exports = async (req, res) => {
                     </tr>
                     <tr>
                       <td align="center" style="padding:28px 0 0;color:#777777;font-size:13px;line-height:1.7;">
-                        <div style="color:#ffffff;font-weight:700;letter-spacing:2px;text-transform:uppercase;">AMNEUZ Music</div>
+                        <div style="color:#ffffff;font-weight:700;letter-spacing:1px;text-transform:uppercase;">AMNEUZ Music</div>
                         <div>Stream anywhere. Own it here.</div>
                       </td>
                     </tr>
