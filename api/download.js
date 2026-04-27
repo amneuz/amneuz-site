@@ -105,13 +105,18 @@ module.exports = async function handler(req, res) {
       duplicateDownloadMap.delete(duplicateKey);
     }, duplicateWindowMs);
 
-    const { error: updateError } = await supabase
-      .from('order_items')
-      .update({ downloads: item.downloads + 1 })
-      .eq('id', item.id);
+    const { data: updatedItems, error: updateError } = await supabase
+      .rpc('increment_order_item_download', {
+        p_order_item_id: item.id,
+        p_max_downloads: order.max_downloads
+      });
 
     if (updateError) {
       return res.status(500).json({ error: 'Unable to process download' });
+    }
+
+    if (!updatedItems || updatedItems.length === 0) {
+      return res.status(403).json({ error: 'Download limit reached' });
     }
 
     const { data: signedUrlData, error: urlError } = await supabase
