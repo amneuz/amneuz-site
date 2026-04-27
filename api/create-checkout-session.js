@@ -78,7 +78,6 @@ module.exports = async function handler(req, res) {
       }),
       success_url: `${origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/cancel.html`,
-      customer_email: 'test+location_FR@example.com',
       adaptive_pricing: {
         enabled: true
       },
