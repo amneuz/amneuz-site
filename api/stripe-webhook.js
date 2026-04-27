@@ -37,6 +37,24 @@ function formatAmount(amount, currency) {
   return `${code || 'USD'} $${value}`;
 }
 
+function publicHttpsUrl(path, baseUrl) {
+  const value = String(path || '').trim();
+
+  if (!value) {
+    return '';
+  }
+
+  if (value.startsWith('https://')) {
+    return value;
+  }
+
+  if (value.startsWith('http://')) {
+    return '';
+  }
+
+  return value.startsWith('/') ? `${baseUrl}${value}` : `${baseUrl}/${value}`;
+}
+
 module.exports.config = {
   api: {
     bodyParser: false,
@@ -152,6 +170,8 @@ module.exports = async (req, res) => {
 
     const baseUrl = 'https://amneuz.com';
     const downloadPageUrl = `${baseUrl}/success.html?session_id=${session.id}`;
+    const customerName = session.customer_details?.name ? session.customer_details.name.trim() : '';
+    const greeting = customerName ? `Hi ${customerName},` : 'Hi there,';
     const orderDate = session.created ? new Date(session.created * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC') : 'Not available';
     const totalPaid = formatAmount(session.amount_total, session.currency);
     const lineItemByPriceId = new Map();
@@ -166,14 +186,27 @@ module.exports = async (req, res) => {
       const item = lineItemByPriceId.get(track.stripePriceId);
       const trackPrice = item ? formatAmount(item.amount_total || item.amount_subtotal || item.price.unit_amount, item.currency || session.currency) : 'Included';
       const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : ''].filter(Boolean).join(' · ');
+      const coverUrl = publicHttpsUrl(track.cover, baseUrl);
+      const coverCell = coverUrl ? `
+              <td width="64" valign="top" style="width:64px;padding:0 14px 0 0;">
+                <img src="${escapeHtml(coverUrl)}" width="64" height="64" alt="${escapeHtml(track.title)} artwork" style="display:block;width:64px;height:64px;border-radius:8px;object-fit:cover;border:0;">
+              </td>
+            ` : '';
 
       return `
         <tr>
           <td style="padding:18px 0;border-top:1px solid #242424;">
-            <div style="font-size:17px;line-height:1.35;font-weight:700;color:#ffffff;">${escapeHtml(track.title)}</div>
-            <div style="margin-top:6px;font-size:13px;line-height:1.45;color:#9b9b9b;">${escapeHtml(details || 'AMNEUZ release')}</div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                ${coverCell}
+                <td valign="middle" style="padding:0;">
+                  <div style="font-size:17px;line-height:1.35;font-weight:700;color:#ffffff;">${escapeHtml(track.title)}</div>
+                  <div style="margin-top:6px;font-size:13px;line-height:1.45;color:#9b9b9b;">${escapeHtml(details || 'AMNEUZ release')}</div>
+                </td>
+              </tr>
+            </table>
           </td>
-          <td align="right" style="padding:18px 0;border-top:1px solid #242424;font-size:14px;line-height:1.45;color:#d8d8d8;white-space:nowrap;">${escapeHtml(trackPrice)}</td>
+          <td align="right" valign="middle" style="padding:18px 0 18px 14px;border-top:1px solid #242424;font-size:14px;line-height:1.45;color:#d8d8d8;white-space:nowrap;">${escapeHtml(trackPrice)}</td>
         </tr>
       `;
     }).join('');
@@ -201,13 +234,13 @@ module.exports = async (req, res) => {
                     <tr>
                       <td align="center" style="padding:24px 0 34px;">
                         <div style="font-size:46px;line-height:1;letter-spacing:9px;font-weight:700;color:#ffffff;">AMNEUZ</div>
-                        <div style="margin-top:14px;font-size:11px;line-height:1.4;letter-spacing:4px;color:#9c9c9c;text-transform:uppercase;">SOUND IS THE ENTRANCE.</div>
                       </td>
                     </tr>
                     <tr>
                       <td style="border:1px solid #242424;background:#0b0b0b;border-radius:18px;padding:34px 30px;box-shadow:0 24px 60px rgba(0,0,0,0.45);">
                         <h1 style="margin:0;font-size:34px;line-height:1.08;letter-spacing:-1px;color:#ffffff;font-weight:700;text-align:center;">Your tracks are ready</h1>
-                        <p style="margin:18px auto 0;max-width:460px;font-size:16px;line-height:1.65;color:#bdbdbd;text-align:center;">Thank you for supporting AMNEUZ directly. Your private download page is ready below.</p>
+                        <p style="margin:18px auto 0;max-width:460px;font-size:16px;line-height:1.65;color:#ffffff;text-align:center;">${escapeHtml(greeting)}</p>
+                        <p style="margin:10px auto 0;max-width:460px;font-size:16px;line-height:1.65;color:#bdbdbd;text-align:center;">Thank you for supporting AMNEUZ directly.</p>
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:30px;width:100%;border-collapse:collapse;">
                           <tr>
                             <td style="padding:14px 0;border-top:1px solid #242424;font-size:12px;line-height:1.4;letter-spacing:2px;color:#8f8f8f;text-transform:uppercase;">Purchaser</td>
@@ -226,7 +259,7 @@ module.exports = async (req, res) => {
                           ${trackRows}
                         </table>
                         <div style="padding:30px 0 18px;text-align:center;">
-                          <a href="${escapeHtml(downloadPageUrl)}" style="display:inline-block;padding:16px 24px;background:#f5f5f5;color:#050505;text-decoration:none;border-radius:999px;font-size:12px;line-height:1;letter-spacing:2px;text-transform:uppercase;font-weight:700;">Open your download page</a>
+                          <a href="${escapeHtml(downloadPageUrl)}" style="display:inline-block;padding:16px 24px;background:#f5f5f5;color:#050505;text-decoration:none;border-radius:999px;font-size:12px;line-height:1;letter-spacing:2px;text-transform:uppercase;font-weight:700;">OPEN YOUR DOWNLOAD PAGE</a>
                         </div>
                         <p style="margin:10px 0 0;font-size:13px;line-height:1.55;color:#969696;text-align:center;">Your downloads are limited to 3 attempts. Keep this email private.</p>
                       </td>
@@ -240,7 +273,6 @@ module.exports = async (req, res) => {
                     <tr>
                       <td align="center" style="padding:28px 0 0;color:#777777;font-size:13px;line-height:1.7;">
                         <div style="color:#ffffff;font-weight:700;letter-spacing:2px;text-transform:uppercase;">AMNEUZ Music</div>
-                        <div>music@amneuz.com</div>
                         <div>Stream anywhere. Own it here.</div>
                       </td>
                     </tr>
@@ -252,7 +284,9 @@ module.exports = async (req, res) => {
         `,
         text: `Your tracks are ready
 
-Thank you for supporting AMNEUZ directly. Your private download page is ready below.
+${greeting}
+
+Thank you for supporting AMNEUZ directly.
 
 Purchaser: ${email}
 Order date: ${orderDate}
@@ -271,9 +305,6 @@ https://www.instagram.com/amneuz/
 
 TikTok:
 https://www.tiktok.com/@amneuz
-
-Support:
-music@amneuz.com
 
 AMNEUZ Music
 Stream anywhere. Own it here.`
