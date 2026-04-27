@@ -9,6 +9,8 @@ const supabase = createClient(
 const rateLimitWindowMs = 60 * 1000;
 const rateLimitMaxRequests = 12;
 const rateLimitMap = new Map();
+const duplicateWindowMs = 5 * 1000;
+const duplicateDownloadMap = new Map();
 
 function getClientIp(req) {
   const forwardedFor = req.headers['x-forwarded-for'];
@@ -90,6 +92,18 @@ module.exports = async function handler(req, res) {
     if (item.downloads >= order.max_downloads) {
       return res.status(403).json({ error: 'Download limit reached' });
     }
+
+    const duplicateKey = `${item.id}:${trackId}`;
+    const duplicateEntry = duplicateDownloadMap.get(duplicateKey);
+
+    if (duplicateEntry && Date.now() - duplicateEntry < duplicateWindowMs) {
+      return res.status(429).json({ error: 'Please wait before downloading again' });
+    }
+
+    duplicateDownloadMap.set(duplicateKey, Date.now());
+    setTimeout(function() {
+      duplicateDownloadMap.delete(duplicateKey);
+    }, duplicateWindowMs);
 
     const { error: updateError } = await supabase
       .from('order_items')

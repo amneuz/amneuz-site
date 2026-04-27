@@ -174,6 +174,10 @@ module.exports = async (req, res) => {
     const greeting = customerName ? `Hi ${customerName},` : 'Hi there,';
     const orderDate = session.created ? new Date(session.created * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC') : 'Not available';
     const totalPaid = formatAmount(session.amount_total, session.currency);
+    const trackCount = purchasedTracks.length;
+    const purchaseSummary = trackCount === 1 ? 'You bought 1 track' : `You bought ${trackCount} tracks`;
+    const ctaText = trackCount === 1 ? 'DOWNLOAD YOUR TRACK' : 'DOWNLOAD YOUR TRACKS';
+    const downloadNote = trackCount === 1 ? 'Your download is limited to 3 attempts for this track. Keep this email private.' : 'Your downloads are limited to 3 attempts per track. Keep this email private.';
     const lineItemByPriceId = new Map();
 
     lineItems.data.forEach(function(item) {
@@ -255,17 +259,19 @@ module.exports = async (req, res) => {
                             <td align="right" style="padding:14px 0;border-top:1px solid #242424;border-bottom:1px solid #242424;font-size:16px;line-height:1.4;color:#ffffff;font-weight:700;">${escapeHtml(totalPaid)}</td>
                           </tr>
                         </table>
+                        <div style="margin-top:24px;font-size:12px;line-height:1.4;letter-spacing:2px;color:#8f8f8f;text-transform:uppercase;text-align:left;">${escapeHtml(purchaseSummary)}</div>
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;width:100%;border-collapse:collapse;">
                           ${trackRows}
                         </table>
                         <div style="padding:30px 0 18px;text-align:center;">
-                          <a href="${escapeHtml(downloadPageUrl)}" style="display:inline-block;padding:16px 24px;background:#f5f5f5;color:#050505;text-decoration:none;border-radius:999px;font-size:12px;line-height:1;letter-spacing:2px;text-transform:uppercase;font-weight:700;">OPEN YOUR DOWNLOAD PAGE</a>
+                          <a href="${escapeHtml(downloadPageUrl)}" style="display:inline-block;padding:16px 24px;background:#f5f5f5;color:#050505;text-decoration:none;border-radius:999px;font-size:12px;line-height:1;letter-spacing:2px;text-transform:uppercase;font-weight:700;">${escapeHtml(ctaText)}</a>
                         </div>
-                        <p style="margin:10px 0 0;font-size:13px;line-height:1.55;color:#969696;text-align:center;">Your downloads are limited to 3 attempts. Keep this email private.</p>
+                        <p style="margin:10px 0 0;font-size:13px;line-height:1.55;color:#969696;text-align:center;">${escapeHtml(downloadNote)}</p>
                       </td>
                     </tr>
                     <tr>
                       <td align="center" style="padding:28px 0 0;">
+                        <div style="margin:0 0 14px;font-size:12px;line-height:1.4;letter-spacing:2px;color:#8f8f8f;text-transform:uppercase;">Follow AMNEUZ</div>
                         <a href="https://www.instagram.com/amneuz/" style="display:inline-block;margin:0 5px;padding:10px 14px;border:1px solid #2c2c2c;border-radius:999px;color:#ffffff;text-decoration:none;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">Instagram</a>
                         <a href="https://www.tiktok.com/@amneuz" style="display:inline-block;margin:0 5px;padding:10px 14px;border:1px solid #2c2c2c;border-radius:999px;color:#ffffff;text-decoration:none;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">TikTok</a>
                       </td>
@@ -292,13 +298,19 @@ Purchaser: ${email}
 Order date: ${orderDate}
 Total paid: ${totalPaid}
 
+${purchaseSummary}
+
 Purchased tracks:
 ${plainTrackLines}
 
 Download page:
 ${downloadPageUrl}
 
-Your downloads are limited to 3 attempts. Keep this email private.
+${downloadNote}
+
+${ctaText}
+
+Follow AMNEUZ
 
 Instagram:
 https://www.instagram.com/amneuz/

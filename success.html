@@ -332,8 +332,22 @@
 
           if (!isDisabled) {
             button.addEventListener('click', function() {
+              if (button.dataset.downloading === 'true') {
+                return;
+              }
+
+              button.dataset.downloading = 'true';
+              button.disabled = true;
+              button.textContent = 'Preparing download...';
               window.location.href = track.downloadUrl;
               setTimeout(loadOrder, 2200);
+              setTimeout(function() {
+                if (button.isConnected && track.downloadsRemaining > 0) {
+                  button.dataset.downloading = 'false';
+                  button.disabled = false;
+                  button.textContent = 'Download';
+                }
+              }, 5000);
             });
           }
 
