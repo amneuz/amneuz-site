@@ -217,6 +217,97 @@
       font-size: 18px;
     }
 
+    .download-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0,0,0,0.78);
+      backdrop-filter: blur(14px);
+    }
+
+    .download-modal.show {
+      display: flex;
+    }
+
+    .download-modal-card {
+      width: min(100%, 460px);
+      padding: 30px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 24px;
+      background: rgba(8,8,8,0.94);
+      box-shadow: 0 28px 80px rgba(0,0,0,0.52);
+      text-align: center;
+    }
+
+    .download-modal-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.05;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .download-modal-copy {
+      margin: 18px auto 0;
+      max-width: 350px;
+      color: rgba(255,255,255,0.68);
+      font-size: 17px;
+      line-height: 1.5;
+    }
+
+    .download-modal-actions {
+      margin-top: 28px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .modal-btn {
+      min-height: 46px;
+      padding: 14px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 220ms ease, border-color 220ms ease, color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+    }
+
+    .modal-btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.82);
+    }
+
+    .modal-btn-primary {
+      background: #f5f5f5;
+      color: #050505;
+    }
+
+    .modal-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.28);
+    }
+
+    .modal-btn-secondary:hover {
+      border-color: rgba(255,255,255,0.42);
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+    }
+
+    .modal-btn-primary:hover {
+      border-color: rgba(103, 174, 135, 0.72);
+      background: #e8f5ee;
+      color: #07110c;
+      box-shadow: 0 0 26px rgba(82, 142, 108, 0.22), 0 12px 32px rgba(0,0,0,0.28);
+    }
+
     footer {
       padding: 28px 42px 40px;
       display: flex;
@@ -241,6 +332,22 @@
       }
 
       .download-btn {
+        width: 100%;
+      }
+
+      .download-modal-card {
+        padding: 26px 20px;
+      }
+
+      .download-modal-title {
+        font-size: 20px;
+      }
+
+      .download-modal-actions {
+        flex-direction: column;
+      }
+
+      .modal-btn {
         width: 100%;
       }
 
@@ -286,11 +393,88 @@
     <span>Official digital delivery</span>
   </footer>
 
+  <div class="download-modal" id="downloadModal" aria-hidden="true">
+    <div class="download-modal-card" role="dialog" aria-modal="true" aria-labelledby="downloadModalTitle">
+      <h2 class="download-modal-title" id="downloadModalTitle"></h2>
+      <p class="download-modal-copy" id="downloadModalCopy"></p>
+      <div class="download-modal-actions">
+        <button class="modal-btn modal-btn-secondary" id="downloadCancel" type="button">Cancel</button>
+        <button class="modal-btn modal-btn-primary" id="downloadContinue" type="button">Continue Download</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('session_id');
     const statusEl = document.getElementById('status');
     const tracksEl = document.getElementById('tracks');
+    const downloadModal = document.getElementById('downloadModal');
+    const downloadModalTitle = document.getElementById('downloadModalTitle');
+    const downloadModalCopy = document.getElementById('downloadModalCopy');
+    const downloadCancel = document.getElementById('downloadCancel');
+    const downloadContinue = document.getElementById('downloadContinue');
+    let pendingDownload = null;
+
+    function closeDownloadModal() {
+      pendingDownload = null;
+      downloadModal.classList.remove('show');
+      downloadModal.setAttribute('aria-hidden', 'true');
+    }
+
+    function startDownload(track, button) {
+      if (button.dataset.downloading === 'true') {
+        return;
+      }
+
+      button.dataset.downloading = 'true';
+      button.disabled = true;
+      button.textContent = 'Preparing download...';
+      window.location.href = track.downloadUrl;
+      setTimeout(loadOrder, 2200);
+      setTimeout(function() {
+        if (button.isConnected && track.downloadsRemaining > 0) {
+          button.dataset.downloading = 'false';
+          button.disabled = false;
+          button.textContent = 'Download';
+        }
+      }, 5000);
+    }
+
+    function openDownloadModal(track, button) {
+      const attemptNumber = track.downloads + 1;
+      const maxAttempts = track.maxDownloads;
+      const isFinalAttempt = track.downloadsRemaining === 1;
+
+      pendingDownload = { track: track, button: button };
+      downloadModalTitle.textContent = isFinalAttempt ? 'FINAL DOWNLOAD ATTEMPT' : `DOWNLOAD ATTEMPT ${attemptNumber} OF ${maxAttempts}`;
+      downloadModalCopy.textContent = isFinalAttempt
+        ? 'This is your last available download for this track. If you cancel the browser download prompt, this attempt may still be counted.'
+        : 'Starting this download will use one attempt for this track. If you cancel the browser download prompt, this attempt may still be counted.';
+      downloadModal.classList.add('show');
+      downloadModal.setAttribute('aria-hidden', 'false');
+      downloadContinue.focus();
+    }
+
+    downloadCancel.addEventListener('click', closeDownloadModal);
+    downloadModal.addEventListener('click', function(event) {
+      if (event.target === downloadModal) {
+        closeDownloadModal();
+      }
+    });
+    downloadContinue.addEventListener('click', function() {
+      const download = pendingDownload;
+      closeDownloadModal();
+
+      if (download) {
+        startDownload(download.track, download.button);
+      }
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && downloadModal.classList.contains('show')) {
+        closeDownloadModal();
+      }
+    });
 
     async function loadOrder() {
       if (!sessionId) {
@@ -336,18 +520,7 @@
                 return;
               }
 
-              button.dataset.downloading = 'true';
-              button.disabled = true;
-              button.textContent = 'Preparing download...';
-              window.location.href = track.downloadUrl;
-              setTimeout(loadOrder, 2200);
-              setTimeout(function() {
-                if (button.isConnected && track.downloadsRemaining > 0) {
-                  button.dataset.downloading = 'false';
-                  button.disabled = false;
-                  button.textContent = 'Download';
-                }
-              }, 5000);
+              openDownloadModal(track, button);
             });
           }
 
