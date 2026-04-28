@@ -3,11 +3,15 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const greetingTitle = document.getElementById('greetingTitle');
+
 const statusEl = document.getElementById('status');
+
+const substatusEl = document.getElementById('substatus');
 
 const logoutBtn = document.getElementById('logoutBtn');
 
-const SESSION_TIMEOUT_MS = 60 * 1000;
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const ACTIVITY_KEY = 'amneuz_admin_last_activity';
 
@@ -25,7 +29,7 @@ function getGreeting() {
 
   }
 
-  if (hour < 19) {
+  if (hour < 18) {
 
     return 'Good afternoon';
 
@@ -129,7 +133,7 @@ function scheduleSessionCheck() {
 
     scheduleSessionCheck();
 
-  }, 10 * 1000);
+  }, 30 * 1000);
 
 }
 
@@ -197,7 +201,11 @@ async function verifyAdmin() {
 
   });
 
-  statusEl.textContent = `${getGreeting()}, AMNEUZ. Verified admin: ${result.email || 'admin'}`;
+  greetingTitle.textContent = `${getGreeting()}, AMNEUZ.`;
+
+  statusEl.textContent = `Verified admin: ${result.email || 'admin'}`;
+
+  substatusEl.textContent = 'Session expires after 30 minutes of inactivity.';
 
   registerActivityListeners();
 

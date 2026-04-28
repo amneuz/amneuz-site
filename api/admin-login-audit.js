@@ -70,25 +70,18 @@ module.exports = async function handler(req, res) {
     }
   };
 
-  const { data, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from('admin_audit_logs')
-    .insert([payload])
-    .select()
-    .single();
+    .insert([payload]);
 
   if (error) {
     console.error('Admin login audit insert failed:', error.message || error);
 
     return res.status(500).json({
       ok: false,
-      error: 'Audit insert failed',
-      details: error.message || error
+      error: 'Unable to write audit log'
     });
   }
 
-  return res.status(200).json({
-    ok: true,
-    audit_id: data.id,
-    action: data.action
-  });
+  return res.status(200).json({ ok: true });
 };
