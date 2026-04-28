@@ -523,7 +523,7 @@ async function openTrackModal(trackId) {
         <div>
           <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
           <p class="modal-note">
-            Read-only preview. In the next step this modal will become the real edit form.
+            Safe edit mode: only Short Description can be changed in this step.
           </p>
         </div>
 
@@ -555,14 +555,114 @@ async function openTrackModal(trackId) {
           ${detailField('Tidal', track.tidalUrl, true)}
           ${detailField('YouTube', track.youtubeUrl, true)}
           ${detailField('Beatport', track.beatportUrl, true)}
-          ${detailField('Short Description', track.descriptionShort, true)}
+
+          <div class="detail-field full">
+            <p class="detail-label">Short Description</p>
+            <textarea
+              id="shortDescriptionInput"
+              style="width:100%;min-height:90px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.045);color:#fff;padding:13px 14px;font:inherit;resize:vertical;outline:none;"
+            >${escapeHtml(track.descriptionShort || '')}</textarea>
+            <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:12px;">
+              <span id="shortDescriptionStatus" style="margin-right:auto;color:rgba(255,255,255,.58);font-size:.86rem;"></span>
+              <button id="saveShortDescriptionBtn" type="button">Save Description</button>
+            </div>
+          </div>
+
           ${detailField('Long Description', track.descriptionLong, true)}
         </div>
       </div>
     `;
+
+    const saveDescriptionBtn = document.getElementById('saveShortDescriptionBtn');
+
+    if (saveDescriptionBtn) {
+      saveDescriptionBtn.addEventListener('click', function() {
+        saveShortDescription(track);
+      });
+    }
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
+  }
+}
+
+async function saveShortDescription(track) {
+  if (!track || !track.id || !currentSession) return;
+
+  const input = document.getElementById('shortDescriptionInput');
+  const status = document.getElementById('shortDescriptionStatus');
+  const button = document.getElementById('saveShortDescriptionBtn');
+
+  if (!input || !button) return;
+
+  setLastActivity();
+
+  if (status) {
+    status.style.color = 'rgba(255,255,255,.58)';
+    status.textContent = 'Saving...';
+  }
+
+  button.disabled = true;
+  button.textContent = 'Saving...';
+
+  const payload = {
+    title: track.title,
+    artist: track.artist,
+    collaborators: track.collaborators,
+    status: track.status,
+    category: track.category,
+    subgenre: track.subgenre,
+    key: track.key,
+    bpm: track.bpm,
+    durationLabel: track.durationLabel,
+    releaseYear: track.releaseYear,
+    priceMxn: track.priceMxn,
+    sortOrder: track.sortOrder,
+    isFeatured: track.isFeatured,
+    isLatestRelease: track.isLatestRelease,
+    slug: track.slug,
+    soundcloudUrl: track.soundcloudUrl,
+    spotifyUrl: track.spotifyUrl,
+    appleMusicUrl: track.appleMusicUrl,
+    tidalUrl: track.tidalUrl,
+    youtubeUrl: track.youtubeUrl,
+    beatportUrl: track.beatportUrl,
+    descriptionShort: input.value.trim(),
+    descriptionLong: track.descriptionLong
+  };
+
+  try {
+    const response = await fetch(`/api/admin-track?id=${encodeURIComponent(track.id)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to save description');
+    }
+
+    if (status) {
+      status.style.color = '#9fe6b8';
+      status.textContent = 'Saved.';
+    }
+
+    await loadAdminTracks();
+  } catch (err) {
+    if (status) {
+      status.style.color = '#ff9f9f';
+      status.textContent = err.message || 'Unable to save.';
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Save Description';
   }
 }
 
