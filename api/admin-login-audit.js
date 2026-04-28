@@ -1,4 +1,4 @@
-const { supabaseAdmin, writeAdminAuditLog, getRequestIp } = require('./_adminAuth');
+const { supabaseAdmin, getRequestIp } = require('./_adminAuth');
 
 const ALLOWED_ACTIONS = [
   'admin.login.success',
@@ -55,7 +55,7 @@ module.exports = async function handler(req, res) {
   const ipAddress = getRequestIp(req);
   const status = action === 'admin.login.failed' ? 'failed' : 'success';
 
-  await writeAdminAuditLog({
+  const payload = {
     actor_user_id: user ? user.id : null,
     actor_email: user ? user.email : attemptedEmail || null,
     action,
@@ -68,7 +68,27 @@ module.exports = async function handler(req, res) {
     metadata: {
       attempted_email: attemptedEmail || null
     }
-  });
+  };
 
-  return res.status(200).json({ ok: true });
+  const { data, error } = await supabaseAdmin
+    .from('admin_audit_logs')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Admin login audit insert failed:', error.message || error);
+
+    return res.status(500).json({
+      ok: false,
+      error: 'Audit insert failed',
+      details: error.message || error
+    });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    audit_id: data.id,
+    action: data.action
+  });
 };
