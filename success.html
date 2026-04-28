@@ -113,6 +113,7 @@
     }
 
     .track {
+      position: relative;
       display: grid;
       grid-template-columns: 148px 1fr auto;
       gap: 24px;
@@ -122,6 +123,18 @@
       border-radius: 28px;
       background: rgba(10,10,10,0.72);
       backdrop-filter: blur(18px);
+      transition: border-color 240ms ease, box-shadow 240ms ease, background 240ms ease, opacity 240ms ease;
+    }
+
+    .track.download-available {
+      border-color: rgba(92, 121, 255, 0.36);
+      box-shadow:
+        0 0 24px rgba(65, 96, 255, 0.12),
+        inset 0 0 28px rgba(65, 96, 255, 0.045);
+    }
+
+    .track.download-exhausted {
+      opacity: 0.62;
     }
 
     .cover {
@@ -174,6 +187,22 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
       white-space: nowrap;
+      transition: border-color 240ms ease, box-shadow 240ms ease, background 240ms ease, color 240ms ease, opacity 240ms ease;
+    }
+
+    .download-available .wav-badge {
+      border-color: rgba(92, 121, 255, 0.75);
+      background: rgba(49, 69, 180, 0.28);
+      box-shadow:
+        0 0 24px rgba(65, 96, 255, 0.28),
+        inset 0 0 14px rgba(65, 96, 255, 0.12);
+    }
+
+    .download-exhausted .wav-badge {
+      border-color: rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.045);
+      color: rgba(255,255,255,0.42);
+      box-shadow: none;
     }
 
     .wav-icon {
@@ -191,6 +220,11 @@
       border-radius: 999px;
       background: rgba(226, 232, 255, 0.9);
       box-shadow: 0 0 8px rgba(92, 121, 255, 0.52);
+    }
+
+    .download-exhausted .wav-icon span {
+      background: rgba(255,255,255,0.42);
+      box-shadow: none;
     }
 
     .wav-icon span:nth-child(1) { height: 5px; }
@@ -517,7 +551,9 @@
       button.disabled = true;
       button.textContent = 'Preparing download...';
       window.location.href = track.downloadUrl;
+
       setTimeout(loadOrder, 2200);
+
       setTimeout(function() {
         if (button.isConnected && track.downloadsRemaining > 0) {
           button.dataset.downloading = 'false';
@@ -543,11 +579,13 @@
     }
 
     downloadCancel.addEventListener('click', closeDownloadModal);
+
     downloadModal.addEventListener('click', function(event) {
       if (event.target === downloadModal) {
         closeDownloadModal();
       }
     });
+
     downloadContinue.addEventListener('click', function() {
       const download = pendingDownload;
       closeDownloadModal();
@@ -556,6 +594,7 @@
         startDownload(download.track, download.button);
       }
     });
+
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Escape' && downloadModal.classList.contains('show')) {
         closeDownloadModal();
@@ -582,10 +621,12 @@
 
         order.tracks.forEach(function(track) {
           const article = document.createElement('article');
-          article.className = 'track';
-
           const isDisabled = track.downloadsRemaining <= 0;
           const meta = buildMeta(track);
+
+          article.className = isDisabled
+            ? 'track download-exhausted'
+            : 'track download-available';
 
           article.innerHTML = `
             <img class="cover" src="${escapeHtml(track.cover)}" alt="${escapeHtml(track.title)}">
