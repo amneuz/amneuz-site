@@ -2,7 +2,6 @@ const Stripe = require('stripe');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
-const tracks = require('../data/tracks.json');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -53,6 +52,69 @@ function publicHttpsUrl(path, baseUrl) {
   }
 
   return value.startsWith('/') ? `${baseUrl}${value}` : `${baseUrl}/${value}`;
+}
+
+function formatTrackTitle(track) {
+  const artist = track.artist || 'Amneuz';
+  const collaborators = track.collaborators || '';
+  const title = track.title || 'Untitled Track';
+
+  if (collaborators) {
+    return `${artist} & ${collaborators} - ${title}`;
+  }
+
+  return `${artist} - ${title}`;
+}
+
+function mapTrack(track) {
+  return {
+    id: track.legacy_id || track.catalog_code || track.id,
+    uuid: track.id,
+    catalogCode: track.catalog_code,
+    title: formatTrackTitle(track),
+    genre: track.subgenre || '',
+    key: track.track_key || '',
+    bpm: track.bpm || '',
+    duration: track.duration_label || '',
+    cover: track.cover_url || '',
+    stripePriceId: track.stripe_price_id
+  };
+}
+
+async function getPurchasedTracksByPriceIds(priceIds) {
+  const uniquePriceIds = priceIds.filter(function(priceId, index, array) {
+    return priceId && array.indexOf(priceId) === index;
+  });
+
+  if (!uniquePriceIds.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('tracks')
+    .select(`
+      id,
+      legacy_id,
+      catalog_code,
+      title,
+      artist,
+      collaborators,
+      subgenre,
+      track_key,
+      bpm,
+      duration_label,
+      cover_url,
+      stripe_price_id,
+      status
+    `)
+    .in('stripe_price_id', uniquePriceIds)
+    .eq('status', 'visible');
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapTrack);
 }
 
 module.exports.config = {
@@ -119,11 +181,10 @@ module.exports = async (req, res) => {
       })
       .filter(Boolean);
 
-    const purchasedTracks = tracks.filter(function(track) {
-      return priceIds.includes(track.stripePriceId);
-    });
+    const purchasedTracks = await getPurchasedTracksByPriceIds(priceIds);
 
     if (!purchasedTracks.length) {
+      console.error('No purchased tracks found for price IDs:', priceIds);
       return res.status(500).json({ error: 'Unable to process webhook' });
     }
 
@@ -189,7 +250,7 @@ module.exports = async (req, res) => {
     const trackRows = purchasedTracks.map(function(track) {
       const item = lineItemByPriceId.get(track.stripePriceId);
       const trackPrice = item ? formatAmount(item.amount_total || item.amount_subtotal || item.price.unit_amount, item.currency || session.currency) : 'Included';
-      const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : ''].filter(Boolean).join(' · ');
+      const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : '', track.duration].filter(Boolean).join(' · ');
       const coverUrl = publicHttpsUrl(track.cover, baseUrl);
       const coverCell = coverUrl ? `
               <td width="64" valign="top" style="width:64px;padding:0 14px 0 0;">
@@ -218,7 +279,7 @@ module.exports = async (req, res) => {
     const plainTrackLines = purchasedTracks.map(function(track) {
       const item = lineItemByPriceId.get(track.stripePriceId);
       const trackPrice = item ? formatAmount(item.amount_total || item.amount_subtotal || item.price.unit_amount, item.currency || session.currency) : 'Included';
-      const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : ''].filter(Boolean).join(' · ');
+      const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : '', track.duration].filter(Boolean).join(' · ');
 
       return `- ${track.title}${details ? ` (${details})` : ''} - ${trackPrice}`;
     }).join('\n');
@@ -237,10 +298,8 @@ module.exports = async (req, res) => {
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;border-collapse:collapse;">
                     <tr>
                       <td align="center" style="padding:24px 0 34px;">
-
-  <div style="font-size:46px;line-height:.82;letter-spacing:4px;font-weight:700;color:#ffffff;margin-right:-4px;">AMNEUZ</div>
-
-</td>
+                        <div style="font-size:46px;line-height:.82;letter-spacing:4px;font-weight:700;color:#ffffff;margin-right:-4px;">AMNEUZ</div>
+                      </td>
                     </tr>
                     <tr>
                       <td style="border:1px solid #242424;background:#0b0b0b;border-radius:18px;padding:34px 30px;box-shadow:0 24px 60px rgba(0,0,0,0.45);">
