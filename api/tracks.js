@@ -5,6 +5,18 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+function formatTitle(track) {
+  const artist = track.artist || 'Amneuz';
+  const collaborators = track.collaborators || '';
+  const title = track.title || 'Untitled Track';
+
+  if (collaborators) {
+    return `${artist} & ${collaborators} - ${title}`;
+  }
+
+  return `${artist} - ${title}`;
+}
+
 function mapTrack(track) {
   return {
     id: track.legacy_id || track.catalog_code || track.id,
@@ -12,11 +24,7 @@ function mapTrack(track) {
     catalogCode: track.catalog_code,
     slug: track.slug,
     category: track.category,
-    title: track.artist && track.artist !== 'AMNEUZ'
-      ? `${track.artist} - ${track.title}`
-      : track.collaborators
-        ? `${track.artist} & ${track.collaborators} - ${track.title}`
-        : `${track.artist} - ${track.title}`,
+    title: formatTitle(track),
     artist: track.artist,
     collaborators: track.collaborators,
     genre: track.subgenre,
