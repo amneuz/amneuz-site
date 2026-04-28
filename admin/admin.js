@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://lydrhgqzqaxfaokvxqhs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
 
 const loginForm = document.getElementById('loginForm');
 const emailInput = document.getElementById('email');
@@ -16,7 +16,7 @@ function setStatus(message, type) {
 
 function initSupabase() {
   if (!window.supabase || !window.supabase.createClient) {
-    setStatus('Supabase library did not load. Refresh and try again.', 'error');
+    setStatus('Login service is not available. Refresh and try again.', 'error');
     return false;
   }
 
@@ -31,15 +31,11 @@ async function testAdminAccess(session) {
     }
   });
 
-  const data = await response.json().catch(function() {
-    return {};
-  });
-
   if (!response.ok) {
-    throw new Error(data.error || 'Admin verification failed');
+    throw new Error('Admin access could not be verified.');
   }
 
-  return data;
+  return response.json();
 }
 
 async function checkExistingSession() {
@@ -67,7 +63,7 @@ loginForm.addEventListener('submit', async function(event) {
   event.preventDefault();
 
   if (!supabaseClient) {
-    setStatus('Admin auth is not ready. Refresh and try again.', 'error');
+    setStatus('Login service is not ready. Refresh and try again.', 'error');
     return;
   }
 
@@ -89,7 +85,7 @@ loginForm.addEventListener('submit', async function(event) {
     });
 
     if (error || !data || !data.session) {
-      throw new Error(error ? error.message : 'Unable to log in');
+      throw new Error('Unable to log in. Check your credentials.');
     }
 
     await testAdminAccess(data.session);
@@ -97,9 +93,12 @@ loginForm.addEventListener('submit', async function(event) {
     setStatus('Access confirmed. Redirecting...', 'ok');
     window.location.href = './dashboard.html';
   } catch (err) {
-    await supabaseClient.auth.signOut();
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut();
+    }
+
     passwordInput.value = '';
-    setStatus(err.message || 'Unable to log in', 'error');
+    setStatus('Unable to log in. Check your credentials.', 'error');
   } finally {
     loginBtn.disabled = false;
   }
