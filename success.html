@@ -151,6 +151,54 @@
       color: rgba(255,255,255,0.72);
     }
 
+    .download-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    .wav-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: max-content;
+      padding: 7px 12px 6px;
+      border: 1px solid rgba(92, 121, 255, 0.55);
+      border-radius: 999px;
+      background: rgba(49, 69, 180, 0.2);
+      color: rgba(226, 232, 255, 0.94);
+      box-shadow: 0 0 20px rgba(65, 96, 255, 0.18);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .wav-icon {
+      position: relative;
+      width: 18px;
+      height: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .wav-icon span {
+      display: block;
+      width: 2px;
+      border-radius: 999px;
+      background: rgba(226, 232, 255, 0.9);
+      box-shadow: 0 0 8px rgba(92, 121, 255, 0.52);
+    }
+
+    .wav-icon span:nth-child(1) { height: 5px; }
+    .wav-icon span:nth-child(2) { height: 10px; }
+    .wav-icon span:nth-child(3) { height: 7px; }
+    .wav-icon span:nth-child(4) { height: 12px; }
+    .wav-icon span:nth-child(5) { height: 6px; }
+
     .download-btn {
       min-width: 150px;
       padding: 15px 22px;
@@ -331,6 +379,15 @@
         width: 100%;
       }
 
+      .download-side {
+        align-items: stretch;
+      }
+
+      .wav-badge {
+        justify-content: center;
+        width: 100%;
+      }
+
       .download-btn {
         width: 100%;
       }
@@ -416,6 +473,35 @@
     const downloadContinue = document.getElementById('downloadContinue');
     let pendingDownload = null;
 
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function buildMeta(track) {
+      return [
+        track.genre,
+        track.key,
+        track.bpm ? `${track.bpm} BPM` : '',
+        track.duration
+      ].filter(Boolean).join(' · ');
+    }
+
+    function wavBadgeHtml() {
+      return `
+        <div class="wav-badge" aria-label="High-quality WAV file">
+          <span class="wav-icon" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </span>
+          High-quality WAV
+        </div>
+      `;
+    }
+
     function closeDownloadModal() {
       pendingDownload = null;
       downloadModal.classList.remove('show');
@@ -499,17 +585,21 @@
           article.className = 'track';
 
           const isDisabled = track.downloadsRemaining <= 0;
+          const meta = buildMeta(track);
 
           article.innerHTML = `
-            <img class="cover" src="${track.cover}" alt="${track.title}">
+            <img class="cover" src="${escapeHtml(track.cover)}" alt="${escapeHtml(track.title)}">
             <div>
-              <h2>${track.title}</h2>
-              <p class="meta">${track.genre} · ${track.key} · ${track.duration}</p>
+              <h2>${escapeHtml(track.title)}</h2>
+              <p class="meta">${escapeHtml(meta)}</p>
               <p class="downloads">${track.downloadsRemaining} of ${track.maxDownloads} downloads remaining</p>
             </div>
-            <button class="download-btn" type="button" ${isDisabled ? 'disabled' : ''}>
-              ${isDisabled ? 'Limit Reached' : 'Download'}
-            </button>
+            <div class="download-side">
+              ${wavBadgeHtml()}
+              <button class="download-btn" type="button" ${isDisabled ? 'disabled' : ''}>
+                ${isDisabled ? 'Limit Reached' : 'Download'}
+              </button>
+            </div>
           `;
 
           const button = article.querySelector('.download-btn');
