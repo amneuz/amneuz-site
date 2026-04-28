@@ -19,6 +19,9 @@ const ACTIVITY_KEY = 'amneuz_admin_last_activity';
 
 let timeoutId = null;
 let currentSession = null;
+let activeTrackId = null;
+let activeTrack = null;
+let saveTrackBtn = null;
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -118,6 +121,166 @@ function registerActivityListeners() {
       setLastActivity();
     }, { passive: true });
   });
+}
+
+function ensureSaveButton() {
+  if (saveTrackBtn) {
+    return saveTrackBtn;
+  }
+
+  const footer = document.querySelector('.modal-footer');
+
+  saveTrackBtn = document.createElement('button');
+  saveTrackBtn.id = 'saveTrackBtn';
+  saveTrackBtn.type = 'button';
+  saveTrackBtn.textContent = 'Save Changes';
+  saveTrackBtn.style.background = '#f4f4f4';
+  saveTrackBtn.style.color = '#050505';
+
+  footer.insertBefore(saveTrackBtn, closeTrackModalFooter);
+
+  saveTrackBtn.addEventListener('click', saveActiveTrack);
+
+  return saveTrackBtn;
+}
+
+function addFormStyles() {
+  if (document.getElementById('adminFormStyles')) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = 'adminFormStyles';
+  style.textContent = `
+    .admin-form-grid {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 24px;
+    }
+
+    .admin-form-cover {
+      width: 180px;
+      height: 180px;
+      border-radius: 24px;
+      object-fit: cover;
+      background: rgba(255,255,255,.08);
+    }
+
+    .admin-form-note {
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid rgba(92,121,255,.24);
+      border-radius: 16px;
+      background: rgba(49,69,180,.08);
+      color: rgba(226,232,255,.76);
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+
+    .admin-fields {
+      display: grid;
+      grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 14px;
+    }
+
+    .admin-field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .admin-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .admin-field label {
+      color: rgba(255,255,255,.44);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .admin-field input,
+    .admin-field select,
+    .admin-field textarea {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,.045);
+      color: #fff;
+      padding: 13px 14px;
+      font: inherit;
+      outline: none;
+    }
+
+    .admin-field textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    .admin-field input:focus,
+    .admin-field select:focus,
+    .admin-field textarea:focus {
+      border-color: rgba(92,121,255,.55);
+      box-shadow: 0 0 0 3px rgba(92,121,255,.12);
+    }
+
+    .admin-field input[disabled] {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .admin-checkboxes {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .admin-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      padding: 10px 13px;
+      background: rgba(255,255,255,.035);
+      color: rgba(255,255,255,.78);
+      font-size: .82rem;
+    }
+
+    .admin-check input {
+      width: auto;
+    }
+
+    .admin-save-status {
+      grid-column: 1 / -1;
+      min-height: 20px;
+      color: #9fe6b8;
+      font-size: .9rem;
+    }
+
+    .admin-save-status.error {
+      color: #ff9f9f;
+    }
+
+    @media(max-width:760px) {
+      .admin-form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .admin-form-cover {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+      }
+
+      .admin-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
 }
 
 function ensureTracksSection() {
@@ -469,16 +632,54 @@ function renderTracks(tracks) {
   });
 }
 
-function detailField(label, value, full) {
+function formInput(label, name, value, type, full, disabled) {
   return `
-    <div class="detail-field ${full ? 'full' : ''}">
-      <p class="detail-label">${escapeHtml(label)}</p>
-      <p class="detail-value">${escapeHtml(value || '—')}</p>
+    <div class="admin-field ${full ? 'full' : ''}">
+      <label for="${escapeHtml(name)}">${escapeHtml(label)}</label>
+      <input
+        id="${escapeHtml(name)}"
+        name="${escapeHtml(name)}"
+        type="${escapeHtml(type || 'text')}"
+        value="${escapeHtml(value || '')}"
+        ${disabled ? 'disabled' : ''}
+      >
     </div>
   `;
 }
 
+function formTextarea(label, name, value, full) {
+  return `
+    <div class="admin-field ${full ? 'full' : ''}">
+      <label for="${escapeHtml(name)}">${escapeHtml(label)}</label>
+      <textarea id="${escapeHtml(name)}" name="${escapeHtml(name)}">${escapeHtml(value || '')}</textarea>
+    </div>
+  `;
+}
+
+function formSelect(label, name, value, options) {
+  return `
+    <div class="admin-field">
+      <label for="${escapeHtml(name)}">${escapeHtml(label)}</label>
+      <select id="${escapeHtml(name)}" name="${escapeHtml(name)}">
+        ${options.map(function(option) {
+          return `<option value="${escapeHtml(option.value)}" ${String(value) === String(option.value) ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
+        }).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function formCheckbox(label, name, checked) {
+  return `
+    <label class="admin-check">
+      <input type="checkbox" name="${escapeHtml(name)}" ${checked ? 'checked' : ''}>
+      ${escapeHtml(label)}
+    </label>
+  `;
+}
+
 function openModal() {
+  ensureSaveButton();
   trackModal.classList.add('show');
   trackModal.setAttribute('aria-hidden', 'false');
 }
@@ -488,12 +689,23 @@ function closeModal() {
   trackModal.setAttribute('aria-hidden', 'true');
   trackModalTitle.textContent = 'Loading track...';
   trackModalBody.innerHTML = '<p>Loading...</p>';
+  activeTrackId = null;
+  activeTrack = null;
+
+  if (saveTrackBtn) {
+    saveTrackBtn.disabled = false;
+    saveTrackBtn.textContent = 'Save Changes';
+  }
 }
 
 async function openTrackModal(trackId) {
   if (!trackId || !currentSession) return;
 
+  addFormStyles();
   setLastActivity();
+
+  activeTrackId = trackId;
+  activeTrack = null;
 
   trackModalTitle.textContent = 'Loading track...';
   trackModalBody.innerHTML = '<p>Loading...</p>';
@@ -515,54 +727,182 @@ async function openTrackModal(trackId) {
     }
 
     const track = data.track;
+    activeTrack = track;
 
-    trackModalTitle.textContent = track.displayTitle || track.title || 'Track details';
+    trackModalTitle.textContent = track.displayTitle || track.title || 'Edit Track';
 
     trackModalBody.innerHTML = `
-      <div class="track-detail-grid">
+      <form id="trackEditForm" class="admin-form-grid">
         <div>
-          <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
-          <p class="modal-note">
-            Read-only preview. In the next step this modal will become the real edit form.
-          </p>
+          <img class="admin-form-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
+
+          <div class="admin-form-note">
+            Editing safe catalog fields only. Stripe IDs, master paths and files stay locked for now.
+          </div>
         </div>
 
-        <div class="track-detail-fields">
-          ${detailField('Catalog Code', track.catalogCode)}
-          ${detailField('Legacy ID', track.legacyId)}
-          ${detailField('Title', track.title)}
-          ${detailField('Artist', track.artist)}
-          ${detailField('Collaborators', track.collaborators)}
-          ${detailField('Status', statusLabel(track.status))}
-          ${detailField('Category', track.category)}
-          ${detailField('Subgenre', track.subgenre)}
-          ${detailField('Key', track.key)}
-          ${detailField('BPM', track.bpm)}
-          ${detailField('Duration', track.durationLabel)}
-          ${detailField('Release Year', track.releaseYear)}
-          ${detailField('Price', money(track.priceMxn))}
-          ${detailField('Sort Order', track.sortOrder)}
-          ${detailField('Featured', track.isFeatured ? 'Yes' : 'No')}
-          ${detailField('Latest Release', track.isLatestRelease ? 'Yes' : 'No')}
-          ${detailField('Stripe Price ID', track.stripePriceId, true)}
-          ${detailField('Master Path', track.masterPath, true)}
-          ${detailField('Filename', track.filename, true)}
-          ${detailField('Cover URL', track.rawCoverUrl || track.coverUrl, true)}
-          ${detailField('Preview URL', track.rawPreviewUrl || track.previewUrl, true)}
-          ${detailField('SoundCloud', track.soundcloudUrl, true)}
-          ${detailField('Spotify', track.spotifyUrl, true)}
-          ${detailField('Apple Music', track.appleMusicUrl, true)}
-          ${detailField('Tidal', track.tidalUrl, true)}
-          ${detailField('YouTube', track.youtubeUrl, true)}
-          ${detailField('Beatport', track.beatportUrl, true)}
-          ${detailField('Short Description', track.descriptionShort, true)}
-          ${detailField('Long Description', track.descriptionLong, true)}
+        <div class="admin-fields">
+          ${formInput('Catalog Code', 'catalogCode', track.catalogCode, 'text', false, true)}
+          ${formInput('Legacy ID', 'legacyId', track.legacyId, 'text', false, true)}
+
+          ${formInput('Title', 'title', track.title, 'text')}
+          ${formInput('Artist', 'artist', track.artist, 'text')}
+
+          ${formInput('Collaborators', 'collaborators', track.collaborators, 'text')}
+          ${formSelect('Status', 'status', track.status, [
+            { value: 'visible', label: 'Visible' },
+            { value: 'hidden', label: 'Hidden' },
+            { value: 'upcoming', label: 'Upcoming' }
+          ])}
+
+          ${formSelect('Category', 'category', track.category, [
+            { value: 'remixes', label: 'Remixes' },
+            { value: 'originals', label: 'Originals' },
+            { value: 'album', label: 'Album' }
+          ])}
+          ${formInput('Subgenre', 'subgenre', track.subgenre, 'text')}
+
+          ${formInput('Key', 'key', track.key, 'text')}
+          ${formInput('BPM', 'bpm', track.bpm, 'number')}
+
+          ${formInput('Duration', 'durationLabel', track.durationLabel, 'text')}
+          ${formInput('Release Year', 'releaseYear', track.releaseYear, 'number')}
+
+          ${formInput('Price MXN', 'priceMxn', track.priceMxn, 'number')}
+          ${formInput('Sort Order', 'sortOrder', track.sortOrder, 'number')}
+
+          <div class="admin-checkboxes">
+            ${formCheckbox('Featured', 'isFeatured', track.isFeatured)}
+            ${formCheckbox('Latest Release', 'isLatestRelease', track.isLatestRelease)}
+          </div>
+
+          ${formInput('Slug', 'slug', track.slug, 'text', true)}
+
+          ${formInput('SoundCloud URL', 'soundcloudUrl', track.soundcloudUrl, 'url', true)}
+          ${formInput('Spotify URL', 'spotifyUrl', track.spotifyUrl, 'url', true)}
+          ${formInput('Apple Music URL', 'appleMusicUrl', track.appleMusicUrl, 'url', true)}
+          ${formInput('Tidal URL', 'tidalUrl', track.tidalUrl, 'url', true)}
+          ${formInput('YouTube URL', 'youtubeUrl', track.youtubeUrl, 'url', true)}
+          ${formInput('Beatport URL', 'beatportUrl', track.beatportUrl, 'url', true)}
+
+          ${formTextarea('Short Description', 'descriptionShort', track.descriptionShort, true)}
+          ${formTextarea('Long Description', 'descriptionLong', track.descriptionLong, true)}
+
+          ${formInput('Stripe Price ID', 'stripePriceId', track.stripePriceId, 'text', true, true)}
+          ${formInput('Master Path', 'masterPath', track.masterPath, 'text', true, true)}
+          ${formInput('Filename', 'filename', track.filename, 'text', true, true)}
+          ${formInput('Cover URL', 'rawCoverUrl', track.rawCoverUrl || track.coverUrl, 'text', true, true)}
+          ${formInput('Preview URL', 'rawPreviewUrl', track.rawPreviewUrl || track.previewUrl, 'text', true, true)}
+
+          <div class="admin-save-status" id="trackSaveStatus"></div>
         </div>
-      </div>
+      </form>
     `;
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
+  }
+}
+
+function getFormValue(form, name) {
+  const field = form.elements[name];
+
+  if (!field) {
+    return '';
+  }
+
+  return field.value;
+}
+
+function getFormChecked(form, name) {
+  const field = form.elements[name];
+  return !!(field && field.checked);
+}
+
+async function saveActiveTrack() {
+  if (!activeTrackId || !currentSession) {
+    return;
+  }
+
+  const form = document.getElementById('trackEditForm');
+  const saveStatus = document.getElementById('trackSaveStatus');
+
+  if (!form) {
+    return;
+  }
+
+  setLastActivity();
+
+  if (saveStatus) {
+    saveStatus.className = 'admin-save-status';
+    saveStatus.textContent = 'Saving changes...';
+  }
+
+  saveTrackBtn.disabled = true;
+  saveTrackBtn.textContent = 'Saving...';
+
+  const payload = {
+    title: getFormValue(form, 'title'),
+    artist: getFormValue(form, 'artist'),
+    collaborators: getFormValue(form, 'collaborators'),
+    status: getFormValue(form, 'status'),
+    category: getFormValue(form, 'category'),
+    subgenre: getFormValue(form, 'subgenre'),
+    key: getFormValue(form, 'key'),
+    bpm: getFormValue(form, 'bpm'),
+    durationLabel: getFormValue(form, 'durationLabel'),
+    releaseYear: getFormValue(form, 'releaseYear'),
+    priceMxn: getFormValue(form, 'priceMxn'),
+    sortOrder: getFormValue(form, 'sortOrder'),
+    isFeatured: getFormChecked(form, 'isFeatured'),
+    isLatestRelease: getFormChecked(form, 'isLatestRelease'),
+    slug: getFormValue(form, 'slug'),
+    soundcloudUrl: getFormValue(form, 'soundcloudUrl'),
+    spotifyUrl: getFormValue(form, 'spotifyUrl'),
+    appleMusicUrl: getFormValue(form, 'appleMusicUrl'),
+    tidalUrl: getFormValue(form, 'tidalUrl'),
+    youtubeUrl: getFormValue(form, 'youtubeUrl'),
+    beatportUrl: getFormValue(form, 'beatportUrl'),
+    descriptionShort: getFormValue(form, 'descriptionShort'),
+    descriptionLong: getFormValue(form, 'descriptionLong')
+  };
+
+  try {
+    const response = await fetch(`/api/admin-track?id=${encodeURIComponent(activeTrackId)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to save track');
+    }
+
+    activeTrack = data.track;
+
+    if (saveStatus) {
+      saveStatus.className = 'admin-save-status';
+      saveStatus.textContent = 'Changes saved successfully.';
+    }
+
+    trackModalTitle.textContent = data.track.displayTitle || data.track.title || 'Edit Track';
+
+    await loadAdminTracks();
+  } catch (err) {
+    if (saveStatus) {
+      saveStatus.className = 'admin-save-status error';
+      saveStatus.textContent = err.message || 'Unable to save track.';
+    }
+  } finally {
+    saveTrackBtn.disabled = false;
+    saveTrackBtn.textContent = 'Save Changes';
   }
 }
 
