@@ -1,11 +1,11 @@
 (function(){'use strict';
       var tracks=[];
       var cart=[],ambientOn=false,ambientPausedForPreview=false,ambientWasOnBeforePreview=false,previewSwitching=false,previewPausedForVisibility=false,ambientTargetVolume=.28,chromeTimer=null,ambientFade=null,previewFade=null,currentWaveSurfer=null,currentPreviewTrackId=null;
-      var usdPrices={'001':4,'002':5};
+      var displayPrices={'001':89,'002':109};
       function id(x){return document.getElementById(x)}
       function all(s){return Array.prototype.slice.call(document.querySelectorAll(s))}
-      function price(t){return usdPrices[t.id]||0}
-      function money(n){return '$'+Number(n||0).toFixed(2)+' USD'}
+      function price(t){return displayPrices[t.id]||0}
+      function money(n){return '$'+Number(n||0).toFixed(0)+' MXN'}
       function activeCat(){var a=document.querySelector('.tab.active');return a?a.getAttribute('data-cat'):'remixes'}
       function loadTracks(){return fetch('data/tracks.json').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(data){tracks=(Array.isArray(data)?data:[]).map(function(t){return{id:t.id,category:t.category,title:t.title,genre:t.genre,key:t.key,duration:t.duration,release:t.release,cover:t.cover,preview:t.preview,buyUrl:t.buyUrl,spotify:t.spotify,beatport:t.beatport,soundcloud:t.soundcloud,youtube:t.youtube||t.YouTube,appleMusic:t.appleMusic,tidal:t.tidal,stripePriceId:t.stripePriceId}});renderCatalog(activeCat());renderCart()}).catch(function(err){console.warn('Failed to load data/tracks.json',err)})}
       function fadeAudioTo(audio,target,duration,done){if(!audio)return;clearInterval(ambientFade);var start=Number.isFinite(audio.volume)?audio.volume:0,started=Date.now();ambientFade=setInterval(function(){var progress=Math.min(1,(Date.now()-started)/duration);audio.volume=start+(target-start)*progress;if(progress>=1){clearInterval(ambientFade);audio.volume=target;if(done)done()}},30)}
