@@ -12,6 +12,24 @@ function formatTitle(track) {
   return `${artist} - ${title}`;
 }
 
+function publicAssetUrl(value) {
+  const path = String(value || '').trim();
+
+  if (!path) {
+    return '';
+  }
+
+  if (path.startsWith('https://')) {
+    return path;
+  }
+
+  if (path.startsWith('http://')) {
+    return '';
+  }
+
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
 function mapTrack(track) {
   return {
     id: track.id,
@@ -33,8 +51,8 @@ function mapTrack(track) {
     isFeatured: track.is_featured,
     isLatestRelease: track.is_latest_release,
     sortOrder: track.sort_order,
-    coverUrl: track.cover_url,
-    previewUrl: track.preview_url,
+    coverUrl: publicAssetUrl(track.cover_url),
+    previewUrl: publicAssetUrl(track.preview_url),
     masterPath: track.master_path,
     filename: track.filename,
     stripePriceId: track.stripe_price_id,
