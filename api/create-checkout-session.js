@@ -19,7 +19,8 @@ module.exports = async function handler(req, res) {
   }
 
   var forwardedFor = req.headers['x-forwarded-for'];
-  var clientIp = (typeof forwardedFor === 'string' && forwardedFor.split(',')[0].trim()) ||
+  var clientIp =
+    (typeof forwardedFor === 'string' && forwardedFor.split(',')[0].trim()) ||
     (req.socket && req.socket.remoteAddress) ||
     'unknown';
 
@@ -51,12 +52,16 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid checkout items' });
     }
 
-    if (!items.every(function(item) {
-      return item &&
-        typeof item.priceId === 'string' &&
-        item.priceId.indexOf('price_') === 0 &&
-        validPriceIds.indexOf(item.priceId) > -1;
-    })) {
+    if (
+      !items.every(function(item) {
+        return (
+          item &&
+          typeof item.priceId === 'string' &&
+          item.priceId.indexOf('price_') === 0 &&
+          validPriceIds.indexOf(item.priceId) > -1
+        );
+      })
+    ) {
       return res.status(400).json({ error: 'Invalid checkout items' });
     }
 
@@ -78,13 +83,16 @@ module.exports = async function handler(req, res) {
       }),
       success_url: `${origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/cancel.html`,
+      customer_email: 'test+location_FR@example.com',
       adaptive_pricing: {
         enabled: true
       },
       metadata: {
-        trackIds: selectedTracks.map(function(track) {
-          return track.id;
-        }).join(',')
+        trackIds: selectedTracks
+          .map(function(track) {
+            return track.id;
+          })
+          .join(',')
       }
     });
 
