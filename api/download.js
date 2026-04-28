@@ -1,5 +1,4 @@
 const { createClient } = require('@supabase/supabase-js');
-const tracks = require('../data/tracks.json');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -35,6 +34,49 @@ function isRateLimited(ip) {
   return entry.count > rateLimitMaxRequests;
 }
 
+function formatTrackTitle(track) {
+  const artist = track.artist || 'Amneuz';
+  const collaborators = track.collaborators || '';
+  const title = track.title || 'Track';
+
+  if (collaborators) {
+    return `${artist} & ${collaborators} - ${title}`;
+  }
+
+  return `${artist} - ${title}`;
+}
+
+function safeFilename(value) {
+  const name = String(value || '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .trim();
+
+  return name || 'AMNEUZ Track.wav';
+}
+
+async function getTrackByTrackId(trackId) {
+  const { data, error } = await supabase
+    .from('tracks')
+    .select(`
+      id,
+      legacy_id,
+      catalog_code,
+      title,
+      artist,
+      collaborators,
+      master_path,
+      filename,
+      status
+    `)
+    .or(`legacy_id.eq.${trackId},catalog_code.eq.${trackId}`);
+
+  if (error) {
+    throw error;
+  }
+
+  return data && data.length ? data[0] : null;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -55,15 +97,13 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid request' });
   }
 
-  const track = tracks.find(function(item) {
-    return item.id === trackId;
-  });
-
-  if (!track || !track.storagePath || !track.filename) {
-    return res.status(404).json({ error: 'File not found' });
-  }
-
   try {
+    const track = await getTrackByTrackId(trackId);
+
+    if (!track || !track.master_path) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, max_downloads, expires_at')
@@ -112,6 +152,7 @@ module.exports = async function handler(req, res) {
       });
 
     if (updateError) {
+      console.error('Download increment failed:', updateError.message || updateError);
       return res.status(500).json({ error: 'Unable to process download' });
     }
 
@@ -122,9 +163,10 @@ module.exports = async function handler(req, res) {
     const { data: signedUrlData, error: urlError } = await supabase
       .storage
       .from('tracks')
-      .createSignedUrl(track.storagePath, 60);
+      .createSignedUrl(track.master_path, 60);
 
     if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
+      console.error('Signed URL failed:', urlError && (urlError.message || urlError));
       return res.status(500).json({ error: 'Unable to process download' });
     }
 
@@ -135,13 +177,15 @@ module.exports = async function handler(req, res) {
     }
 
     const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
+    const filename = safeFilename(track.filename || `${formatTrackTitle(track)}.wav`);
 
     res.setHeader('Content-Type', fileResponse.headers.get('content-type') || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${track.filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', fileBuffer.length);
 
     return res.status(200).send(fileBuffer);
   } catch (error) {
+    console.error('Download API failed:', error.message || error);
     return res.status(500).json({ error: 'Unable to process download' });
   }
 };
