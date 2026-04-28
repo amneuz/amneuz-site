@@ -22,6 +22,8 @@
     .status.ok{color:#9fe6b8}
     .status.error{color:#ff9b9b}
   </style>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="./admin.js"></script>
 </head>
 <body>
   <main class="card">
@@ -29,7 +31,7 @@
     <h1>Admin</h1>
     <p>Private access for managing AMNEUZ releases.</p>
 
-    <form id="loginForm">
+    <form id="loginForm" onsubmit="return false;">
       <label>
         Email
         <input id="email" type="email" autocomplete="email" required>
@@ -45,8 +47,5 @@
 
     <div id="status" class="status"></div>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./admin.js"></script>
 </body>
 </html>
