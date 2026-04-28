@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://lydrhgqzqaxfaokvxqhs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -7,6 +7,12 @@ const greetingTitle = document.getElementById('greetingTitle');
 const statusEl = document.getElementById('status');
 const substatusEl = document.getElementById('substatus');
 const logoutBtn = document.getElementById('logoutBtn');
+
+const trackModal = document.getElementById('trackModal');
+const trackModalTitle = document.getElementById('trackModalTitle');
+const trackModalBody = document.getElementById('trackModalBody');
+const closeTrackModal = document.getElementById('closeTrackModal');
+const closeTrackModalFooter = document.getElementById('closeTrackModalFooter');
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_KEY = 'amneuz_admin_last_activity';
@@ -17,14 +23,8 @@ let currentSession = null;
 function getGreeting() {
   const hour = new Date().getHours();
 
-  if (hour < 12) {
-    return 'Good morning';
-  }
-
-  if (hour < 18) {
-    return 'Good afternoon';
-  }
-
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
   return 'Good evening';
 }
 
@@ -53,17 +53,9 @@ function escapeHtml(value) {
 function statusLabel(status) {
   const value = String(status || 'unknown').toLowerCase();
 
-  if (value === 'visible') {
-    return 'Visible';
-  }
-
-  if (value === 'hidden') {
-    return 'Hidden';
-  }
-
-  if (value === 'upcoming') {
-    return 'Upcoming';
-  }
+  if (value === 'visible') return 'Visible';
+  if (value === 'hidden') return 'Hidden';
+  if (value === 'upcoming') return 'Upcoming';
 
   return value;
 }
@@ -351,8 +343,13 @@ function ensureTracksSection() {
       font-weight: 700;
       letter-spacing: .12em;
       text-transform: uppercase;
-      cursor: not-allowed;
-      opacity: .72;
+      cursor: pointer;
+      opacity: .9;
+    }
+
+    .admin-mini-btn:hover {
+      color: #fff;
+      background: rgba(255,255,255,.1);
     }
 
     @media (max-width: 760px) {
@@ -391,9 +388,7 @@ function ensureTracksSection() {
 function renderStats(tracks) {
   const statsEl = document.getElementById('tracksStats');
 
-  if (!statsEl) {
-    return;
-  }
+  if (!statsEl) return;
 
   const total = tracks.length;
   const visible = tracks.filter(function(track) { return track.status === 'visible'; }).length;
@@ -423,9 +418,7 @@ function renderStats(tracks) {
 function renderTracks(tracks) {
   const listEl = document.getElementById('tracksList');
 
-  if (!listEl) {
-    return;
-  }
+  if (!listEl) return;
 
   if (!tracks.length) {
     listEl.innerHTML = '<p class="admin-muted">No tracks found yet.</p>';
@@ -461,12 +454,116 @@ function renderTracks(tracks) {
           <p class="admin-track-price">${escapeHtml(money(track.priceMxn))}</p>
           <p class="admin-track-code">${escapeHtml(track.catalogCode || track.legacyId || '')}</p>
           <div class="admin-track-actions">
-            <button class="admin-mini-btn" type="button" disabled>Edit soon</button>
+            <button class="admin-mini-btn edit-track-btn" type="button" data-track-id="${escapeHtml(track.id)}">Edit</button>
           </div>
         </div>
       </article>
     `;
   }).join('');
+
+  document.querySelectorAll('.edit-track-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+      const trackId = button.getAttribute('data-track-id');
+      openTrackModal(trackId);
+    });
+  });
+}
+
+function detailField(label, value, full) {
+  return `
+    <div class="detail-field ${full ? 'full' : ''}">
+      <p class="detail-label">${escapeHtml(label)}</p>
+      <p class="detail-value">${escapeHtml(value || '—')}</p>
+    </div>
+  `;
+}
+
+function openModal() {
+  trackModal.classList.add('show');
+  trackModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeModal() {
+  trackModal.classList.remove('show');
+  trackModal.setAttribute('aria-hidden', 'true');
+  trackModalTitle.textContent = 'Loading track...';
+  trackModalBody.innerHTML = '<p>Loading...</p>';
+}
+
+async function openTrackModal(trackId) {
+  if (!trackId || !currentSession) return;
+
+  setLastActivity();
+
+  trackModalTitle.textContent = 'Loading track...';
+  trackModalBody.innerHTML = '<p>Loading...</p>';
+  openModal();
+
+  try {
+    const response = await fetch(`/api/admin-track?id=${encodeURIComponent(trackId)}`, {
+      headers: {
+        Authorization: `Bearer ${currentSession.access_token}`
+      }
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to load track');
+    }
+
+    const track = data.track;
+
+    trackModalTitle.textContent = track.displayTitle || track.title || 'Track details';
+
+    trackModalBody.innerHTML = `
+      <div class="track-detail-grid">
+        <div>
+          <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
+          <p class="modal-note">
+            Read-only preview. In the next step this modal will become the real edit form.
+          </p>
+        </div>
+
+        <div class="track-detail-fields">
+          ${detailField('Catalog Code', track.catalogCode)}
+          ${detailField('Legacy ID', track.legacyId)}
+          ${detailField('Title', track.title)}
+          ${detailField('Artist', track.artist)}
+          ${detailField('Collaborators', track.collaborators)}
+          ${detailField('Status', statusLabel(track.status))}
+          ${detailField('Category', track.category)}
+          ${detailField('Subgenre', track.subgenre)}
+          ${detailField('Key', track.key)}
+          ${detailField('BPM', track.bpm)}
+          ${detailField('Duration', track.durationLabel)}
+          ${detailField('Release Year', track.releaseYear)}
+          ${detailField('Price', money(track.priceMxn))}
+          ${detailField('Sort Order', track.sortOrder)}
+          ${detailField('Featured', track.isFeatured ? 'Yes' : 'No')}
+          ${detailField('Latest Release', track.isLatestRelease ? 'Yes' : 'No')}
+          ${detailField('Stripe Price ID', track.stripePriceId, true)}
+          ${detailField('Master Path', track.masterPath, true)}
+          ${detailField('Filename', track.filename, true)}
+          ${detailField('Cover URL', track.rawCoverUrl || track.coverUrl, true)}
+          ${detailField('Preview URL', track.rawPreviewUrl || track.previewUrl, true)}
+          ${detailField('SoundCloud', track.soundcloudUrl, true)}
+          ${detailField('Spotify', track.spotifyUrl, true)}
+          ${detailField('Apple Music', track.appleMusicUrl, true)}
+          ${detailField('Tidal', track.tidalUrl, true)}
+          ${detailField('YouTube', track.youtubeUrl, true)}
+          ${detailField('Beatport', track.beatportUrl, true)}
+          ${detailField('Short Description', track.descriptionShort, true)}
+          ${detailField('Long Description', track.descriptionLong, true)}
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    trackModalTitle.textContent = 'Unable to load track';
+    trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
+  }
 }
 
 async function loadAdminTracks() {
@@ -560,6 +657,21 @@ async function verifyAdmin() {
 logoutBtn.addEventListener('click', async function(event) {
   event.preventDefault();
   await logout('admin.logout.manual');
+});
+
+closeTrackModal.addEventListener('click', closeModal);
+closeTrackModalFooter.addEventListener('click', closeModal);
+
+trackModal.addEventListener('click', function(event) {
+  if (event.target === trackModal) {
+    closeModal();
+  }
+});
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape' && trackModal.classList.contains('show')) {
+    closeModal();
+  }
 });
 
 verifyAdmin();
