@@ -13,6 +13,28 @@ const ACTIVITY_KEY = 'amneuz_admin_last_activity';
 
 let timeoutId = null;
 
+let currentSession = null;
+
+function getGreeting() {
+
+  const hour = new Date().getHours();
+
+  if (hour < 12) {
+
+    return 'Good morning';
+
+  }
+
+  if (hour < 19) {
+
+    return 'Good afternoon';
+
+  }
+
+  return 'Good evening';
+
+}
+
 function setLastActivity() {
 
   window.localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
@@ -27,7 +49,49 @@ function getLastActivity() {
 
 }
 
-async function logout() {
+async function sendAudit(action) {
+
+  try {
+
+    const headers = {
+
+      'Content-Type': 'application/json'
+
+    };
+
+    if (currentSession && currentSession.access_token) {
+
+      headers.Authorization = `Bearer ${currentSession.access_token}`;
+
+    }
+
+    await fetch('/api/admin-login-audit', {
+
+      method: 'POST',
+
+      headers,
+
+      body: JSON.stringify({
+
+        action,
+
+        email: currentSession && currentSession.user ? currentSession.user.email : ''
+
+      })
+
+    });
+
+  } catch (err) {}
+
+}
+
+async function logout(action) {
+
+  if (action) {
+
+    await sendAudit(action);
+
+  }
 
   try {
 
@@ -57,7 +121,7 @@ function scheduleSessionCheck() {
 
     if (!lastActivity || inactiveFor >= SESSION_TIMEOUT_MS) {
 
-      await logout();
+      await logout('admin.logout.timeout');
 
       return;
 
@@ -65,7 +129,7 @@ function scheduleSessionCheck() {
 
     scheduleSessionCheck();
 
-  }, 30 * 1000);
+  }, 10 * 1000);
 
 }
 
@@ -95,11 +159,13 @@ async function verifyAdmin() {
 
   }
 
+  currentSession = data.session;
+
   const lastActivity = getLastActivity();
 
   if (lastActivity && Date.now() - lastActivity >= SESSION_TIMEOUT_MS) {
 
-    await logout();
+    await logout('admin.logout.timeout');
 
     return;
 
@@ -119,7 +185,7 @@ async function verifyAdmin() {
 
   if (!response.ok) {
 
-    await logout();
+    await logout(null);
 
     return;
 
@@ -131,7 +197,7 @@ async function verifyAdmin() {
 
   });
 
-  statusEl.textContent = `Verified admin: ${result.email || 'admin'}`;
+  statusEl.textContent = `${getGreeting()}, AMNEUZ. Verified admin: ${result.email || 'admin'}`;
 
   registerActivityListeners();
 
@@ -143,7 +209,7 @@ logoutBtn.addEventListener('click', async function(event) {
 
   event.preventDefault();
 
-  await logout();
+  await logout('admin.logout.manual');
 
 });
 
