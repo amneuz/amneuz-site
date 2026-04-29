@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://lydrhgqzqaxfaokvxqhs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -366,6 +366,16 @@ function ensureTracksSection() {
       background: rgba(49,69,180,.22);
     }
 
+    .upload-preview-btn {
+      border-color: rgba(103,174,135,.38);
+      background: rgba(61,132,92,.12);
+      color: rgba(208,255,224,.94);
+    }
+
+    .upload-preview-btn:hover {
+      background: rgba(61,132,92,.22);
+    }
+
     @media (max-width: 760px) {
       .admin-section-header {
         flex-direction: column;
@@ -453,7 +463,8 @@ function renderTracks(tracks) {
       track.isFeatured ? '<span class="admin-tag">Featured</span>' : '',
       track.isLatestRelease ? '<span class="admin-tag">Latest release</span>' : '',
       track.stripePriceId ? '<span class="admin-tag">Stripe linked</span>' : '<span class="admin-tag hidden">No Stripe</span>',
-      track.masterPath ? '<span class="admin-tag">Master linked</span>' : '<span class="admin-tag hidden">No master</span>'
+      track.masterPath ? '<span class="admin-tag">Master linked</span>' : '<span class="admin-tag hidden">No master</span>',
+      track.previewUrl ? '<span class="admin-tag">Preview linked</span>' : '<span class="admin-tag hidden">No preview</span>'
     ].filter(Boolean).join('');
 
     return `
@@ -613,6 +624,9 @@ async function openTrackModal(trackId) {
 
           <button id="uploadCoverBtn" class="upload-cover-btn" type="button">Upload Cover</button>
           <input id="coverFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;">
+
+          <button id="uploadPreviewBtn" class="upload-cover-btn upload-preview-btn" type="button">Upload Preview</button>
+          <input id="previewFileInput" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/wave,audio/webm,audio/mp4,audio/aac,audio/ogg" style="display:none;">
         </div>
 
         <div class="track-detail-fields">
@@ -670,6 +684,7 @@ async function openTrackModal(trackId) {
 
     bindEditableChangeListeners();
     bindCoverUpload();
+    bindPreviewUpload();
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
@@ -787,6 +802,30 @@ function bindCoverUpload() {
   });
 }
 
+function bindPreviewUpload() {
+  const uploadPreviewBtn = document.getElementById('uploadPreviewBtn');
+  const previewFileInput = document.getElementById('previewFileInput');
+
+  if (!uploadPreviewBtn || !previewFileInput) {
+    return;
+  }
+
+  uploadPreviewBtn.addEventListener('click', function() {
+    previewFileInput.click();
+  });
+
+  previewFileInput.addEventListener('change', async function() {
+    const file = previewFileInput.files && previewFileInput.files[0];
+
+    if (!file) {
+      return;
+    }
+
+    await uploadPreviewFile(file);
+    previewFileInput.value = '';
+  });
+}
+
 function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
     const reader = new FileReader();
@@ -877,6 +916,87 @@ async function uploadCoverFile(file) {
     if (uploadCoverBtn) {
       uploadCoverBtn.disabled = false;
       uploadCoverBtn.textContent = 'Upload Cover';
+    }
+  }
+}
+
+async function uploadPreviewFile(file) {
+  const track = activeTrackForSave;
+  const uploadPreviewBtn = document.getElementById('uploadPreviewBtn');
+
+  if (!track || !track.id || !currentSession) {
+    setSaveStatus('No track loaded.', 'error');
+    return;
+  }
+
+  const allowedTypes = [
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/wave',
+    'audio/webm',
+    'audio/mp4',
+    'audio/aac',
+    'audio/ogg'
+  ];
+
+  if (!file.type || allowedTypes.indexOf(file.type) === -1) {
+    setSaveStatus('Preview must be MP3, WAV, M4A, AAC, OGG, or WEBM.', 'error');
+    return;
+  }
+
+  if (file.size > 25 * 1024 * 1024) {
+    setSaveStatus('Preview file is too large. Max 25MB.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Uploading preview...', '');
+
+  if (uploadPreviewBtn) {
+    uploadPreviewBtn.disabled = true;
+    uploadPreviewBtn.textContent = 'Uploading...';
+  }
+
+  try {
+    const fileBase64 = await fileToBase64(file);
+
+    const response = await fetch('/api/admin-upload-preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({
+        trackId: track.id,
+        fileName: file.name,
+        mimeType: file.type,
+        fileBase64
+      })
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to upload preview');
+    }
+
+    activeTrackForSave.previewUrl = data.previewUrl;
+    activeTrackForSave.rawPreviewUrl = data.previewUrl;
+
+    setSaveStatus('Preview uploaded.', 'ok');
+    setFooterButtonToClose();
+
+    await loadAdminTracks();
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to upload preview.', 'error');
+  } finally {
+    if (uploadPreviewBtn) {
+      uploadPreviewBtn.disabled = false;
+      uploadPreviewBtn.textContent = 'Upload Preview';
     }
   }
 }
