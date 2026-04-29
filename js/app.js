@@ -665,18 +665,35 @@ function meta(text){
 }
 
 function platformLink(name,url){
-  if(!url)return null;
+
+  var cleanUrl=String(url||'').trim();
+
+  if(!cleanUrl)return null;
+
+  if(cleanUrl.toLowerCase()==='null')return null;
+
+  if(cleanUrl.toLowerCase()==='undefined')return null;
+
+  if(cleanUrl==='-')return null;
+
+  if(cleanUrl==='#')return null;
 
   var el=document.createElement('a');
 
-  el.href=url;
+  el.href=cleanUrl;
+
   el.target='_blank';
+
   el.rel='noopener noreferrer';
+
   el.textContent=name;
+
   el.onclick=function(e){e.stopPropagation()};
+
   el.className='track-platform';
 
   return el;
+
 }
 
 function appendPlatform(links,name,url){
@@ -1009,10 +1026,10 @@ function ensureAlbumStyles(){
 
   style.id='albumStyles';
   style.textContent=
-    '.album-release{cursor:pointer;transition:border-color .22s ease,background .22s ease,transform .22s ease,box-shadow .22s ease;}'+
+    '.album-release{cursor:pointer;align-items:flex-start;transition:border-color .22s ease,background .22s ease,transform .22s ease,box-shadow .22s ease;}'+
     '.album-release:hover{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.055);box-shadow:0 18px 48px rgba(0,0,0,.28);}'+
     '.album-release .track-body{min-width:0;}'+
-    '.album-release .track-buy{gap:10px;}'+
+    '.album-release .track-buy{gap:10px;align-self:flex-start;padding-top:0;}'+
     '.album-description{margin:12px 0 0;color:rgba(255,255,255,.62);line-height:1.5;max-width:680px;}'+
     '.album-listen{margin-top:18px;}'+
     '.album-platforms{margin-top:8px;}'+
