@@ -1026,7 +1026,7 @@ function openNewAlbumModal() {
   trackModalBody.innerHTML = `
     <div class="new-track-grid">
       <div class="new-track-note">
-        This will create a grouped release in Supabase and automatically create a one-time MXN Product + Price in Stripe.
+        This will create a grouped release in Supabase and automatically create a one-time MXN Product + Price in Stripe. After creating it, open the album editor to upload cover.
       </div>
 
       ${newTrackField('Title *', 'albumTitleInput', 'text', '', false)}
@@ -1049,16 +1049,11 @@ function openNewAlbumModal() {
       ${newTrackField('Release Date', 'albumReleaseDateInput', 'date', '', false)}
       ${newTrackField('Sort Order', 'albumSortOrderInput', 'number', '', false)}
 
-            ${newTrackField('SoundCloud URL', 'albumSoundcloudInput', 'url', '', true)}
-
+      ${newTrackField('SoundCloud URL', 'albumSoundcloudInput', 'url', '', true)}
       ${newTrackField('Spotify URL', 'albumSpotifyInput', 'url', '', true)}
-
       ${newTrackField('Apple Music URL', 'albumAppleMusicInput', 'url', '', true)}
-
       ${newTrackField('Tidal URL', 'albumTidalInput', 'url', '', true)}
-
       ${newTrackField('YouTube URL', 'albumYoutubeInput', 'url', '', true)}
-
       ${newTrackField('Beatport URL', 'albumBeatportInput', 'url', '', true)}
 
       <div class="detail-field full">
@@ -1121,8 +1116,10 @@ async function openAlbumModal(albumId) {
     trackModalBody.innerHTML = `
       <div class="track-detail-grid">
         <div>
-          <img class="track-detail-cover" src="${escapeHtml(album.coverUrl || '')}" alt="${escapeHtml(album.displayTitle || album.title || 'Album cover')}">
-          <p class="admin-muted" style="margin-top:12px;">Album cover upload will be connected in the next step.</p>
+          <img id="albumModalCover" class="track-detail-cover" src="${escapeHtml(album.coverUrl || '')}" alt="${escapeHtml(album.displayTitle || album.title || 'Album cover')}">
+
+          <button id="uploadAlbumCoverBtn" class="upload-cover-btn" type="button">Upload Album Cover</button>
+          <input id="albumCoverFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;">
         </div>
 
         <div class="track-detail-fields">
@@ -1159,15 +1156,10 @@ async function openAlbumModal(albumId) {
           ${detailField('Cover URL', album.rawCoverUrl || album.coverUrl, true)}
 
           ${editableInput('SoundCloud URL', 'albumSoundcloudInput', album.soundcloudUrl, 'url', true)}
-
           ${editableInput('Spotify URL', 'albumSpotifyInput', album.spotifyUrl, 'url', true)}
-
           ${editableInput('Apple Music URL', 'albumAppleMusicInput', album.appleMusicUrl, 'url', true)}
-
           ${editableInput('Tidal URL', 'albumTidalInput', album.tidalUrl, 'url', true)}
-
           ${editableInput('YouTube URL', 'albumYoutubeInput', album.youtubeUrl, 'url', true)}
-
           ${editableInput('Beatport URL', 'albumBeatportInput', album.beatportUrl, 'url', true)}
 
           <div class="detail-field full">
@@ -1184,6 +1176,7 @@ async function openAlbumModal(albumId) {
     `;
 
     bindEditableChangeListeners();
+    bindAlbumCoverUpload();
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load album';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load album')}</p>`;
@@ -1242,9 +1235,10 @@ async function openTrackModal(trackId) {
         <div class="track-detail-fields">
           ${detailField('Catalog Code', track.catalogCode)}
           ${detailField('Legacy ID', track.legacyId)}
-          ${detailField('Title', track.title)}
-          ${detailField('Artist', track.artist)}
-          ${detailField('Collaborators', track.collaborators)}
+
+          ${editableInput('Title', 'titleInput', track.title, 'text')}
+          ${editableInput('Artist', 'artistInput', track.artist, 'text')}
+          ${editableInput('Collaborators', 'collaboratorsInput', track.collaborators, 'text')}
 
           ${editableSelect('Status', 'statusInput', track.status, [
             { value: 'visible', label: 'Visible' },
@@ -1252,14 +1246,19 @@ async function openTrackModal(trackId) {
             { value: 'upcoming', label: 'Upcoming' }
           ])}
 
-          ${detailField('Category', track.category)}
+          ${editableSelect('Category', 'categoryInput', track.category, [
+            { value: 'remixes', label: 'Remixes' },
+            { value: 'originals', label: 'Originals' },
+            { value: 'album', label: 'Album' }
+          ])}
+
           ${editableInput('Subgenre', 'subgenreInput', track.subgenre, 'text')}
           ${editableInput('Key', 'keyInput', track.key, 'text')}
           ${editableInput('BPM', 'bpmInput', track.bpm, 'text')}
           ${editableInput('Duration', 'durationLabelInput', track.durationLabel, 'text')}
-          ${detailField('Release Year', track.releaseYear)}
+          ${editableInput('Release Year', 'releaseYearInput', track.releaseYear, 'number')}
           ${editableInput('Price MXN', 'priceMxnInput', track.priceMxn, 'number')}
-          ${detailField('Sort Order', track.sortOrder)}
+          ${editableInput('Sort Order', 'sortOrderInput', track.sortOrder, 'number')}
 
           <div class="detail-field full">
             <p class="detail-label">Display Flags</p>
@@ -1277,18 +1276,21 @@ async function openTrackModal(trackId) {
           ${detailField('Preview URL', track.rawPreviewUrl || track.previewUrl, true)}
 
           ${editableInput('SoundCloud URL', 'soundcloudUrlInput', track.soundcloudUrl, 'url', true)}
-          ${detailField('Spotify', track.spotifyUrl, true)}
-          ${detailField('Apple Music', track.appleMusicUrl, true)}
-          ${detailField('Tidal', track.tidalUrl, true)}
+          ${editableInput('Spotify URL', 'spotifyUrlInput', track.spotifyUrl, 'url', true)}
+          ${editableInput('Apple Music URL', 'appleMusicUrlInput', track.appleMusicUrl, 'url', true)}
+          ${editableInput('Tidal URL', 'tidalUrlInput', track.tidalUrl, 'url', true)}
           ${editableInput('YouTube URL', 'youtubeUrlInput', track.youtubeUrl, 'url', true)}
-          ${detailField('Beatport', track.beatportUrl, true)}
+          ${editableInput('Beatport URL', 'beatportUrlInput', track.beatportUrl, 'url', true)}
 
           <div class="detail-field full">
             <p class="detail-label">Short Description</p>
             <textarea id="shortDescriptionInput" class="admin-edit-textarea">${escapeHtml(track.descriptionShort || '')}</textarea>
           </div>
 
-          ${detailField('Long Description', track.descriptionLong, true)}
+          <div class="detail-field full">
+            <p class="detail-label">Long Description</p>
+            <textarea id="longDescriptionInput" class="admin-edit-textarea">${escapeHtml(track.descriptionLong || '')}</textarea>
+          </div>
         </div>
       </div>
     `;
@@ -1415,22 +1417,15 @@ function albumPayloadFromForm(existingAlbum) {
     releaseDate: valueOf('albumReleaseDateInput', existingAlbum ? existingAlbum.releaseDate : ''),
     sortOrder: valueOf('albumSortOrderInput', existingAlbum ? existingAlbum.sortOrder : ''),
     isFeatured: checkedOf('albumFeaturedInput', existingAlbum ? existingAlbum.isFeatured : false),
-
-isLatestRelease: checkedOf('albumLatestReleaseInput', existingAlbum ? existingAlbum.isLatestRelease : false),
-
-soundcloudUrl: valueOf('albumSoundcloudInput', existingAlbum ? existingAlbum.soundcloudUrl : ''),
-
-spotifyUrl: valueOf('albumSpotifyInput', existingAlbum ? existingAlbum.spotifyUrl : ''),
-
-appleMusicUrl: valueOf('albumAppleMusicInput', existingAlbum ? existingAlbum.appleMusicUrl : ''),
-
-tidalUrl: valueOf('albumTidalInput', existingAlbum ? existingAlbum.tidalUrl : ''),
-
-youtubeUrl: valueOf('albumYoutubeInput', existingAlbum ? existingAlbum.youtubeUrl : ''),
-
-beatportUrl: valueOf('albumBeatportInput', existingAlbum ? existingAlbum.beatportUrl : ''),
-
-descriptionShort: valueOf('albumShortDescriptionInput', existingAlbum ? existingAlbum.descriptionShort : ''),
+    isLatestRelease: checkedOf('albumLatestReleaseInput', existingAlbum ? existingAlbum.isLatestRelease : false),
+    soundcloudUrl: valueOf('albumSoundcloudInput', existingAlbum ? existingAlbum.soundcloudUrl : ''),
+    spotifyUrl: valueOf('albumSpotifyInput', existingAlbum ? existingAlbum.spotifyUrl : ''),
+    appleMusicUrl: valueOf('albumAppleMusicInput', existingAlbum ? existingAlbum.appleMusicUrl : ''),
+    tidalUrl: valueOf('albumTidalInput', existingAlbum ? existingAlbum.tidalUrl : ''),
+    youtubeUrl: valueOf('albumYoutubeInput', existingAlbum ? existingAlbum.youtubeUrl : ''),
+    beatportUrl: valueOf('albumBeatportInput', existingAlbum ? existingAlbum.beatportUrl : ''),
+    descriptionShort: valueOf('albumShortDescriptionInput', existingAlbum ? existingAlbum.descriptionShort : ''),
+    descriptionLong: valueOf('albumLongDescriptionInput', existingAlbum ? existingAlbum.descriptionLong : '')
   };
 }
 
@@ -1587,29 +1582,29 @@ async function saveTrackSafeChanges() {
   saveTrackModalFooter.textContent = 'Saving...';
 
   const payload = {
-    title: track.title,
-    artist: track.artist,
-    collaborators: track.collaborators,
+    title: valueOf('titleInput', track.title),
+    artist: valueOf('artistInput', track.artist),
+    collaborators: valueOf('collaboratorsInput', track.collaborators),
     status: valueOf('statusInput', track.status),
-    category: track.category,
+    category: valueOf('categoryInput', track.category),
     subgenre: valueOf('subgenreInput', track.subgenre),
     key: valueOf('keyInput', track.key),
     bpm: valueOf('bpmInput', track.bpm),
     durationLabel: valueOf('durationLabelInput', track.durationLabel),
-    releaseYear: track.releaseYear,
+    releaseYear: valueOf('releaseYearInput', track.releaseYear),
     priceMxn: valueOf('priceMxnInput', track.priceMxn),
-    sortOrder: track.sortOrder,
+    sortOrder: valueOf('sortOrderInput', track.sortOrder),
     isFeatured: checkedOf('isFeaturedInput', track.isFeatured),
     isLatestRelease: checkedOf('isLatestReleaseInput', track.isLatestRelease),
     slug: track.slug,
     soundcloudUrl: valueOf('soundcloudUrlInput', track.soundcloudUrl),
-    spotifyUrl: track.spotifyUrl,
-    appleMusicUrl: track.appleMusicUrl,
-    tidalUrl: track.tidalUrl,
+    spotifyUrl: valueOf('spotifyUrlInput', track.spotifyUrl),
+    appleMusicUrl: valueOf('appleMusicUrlInput', track.appleMusicUrl),
+    tidalUrl: valueOf('tidalUrlInput', track.tidalUrl),
     youtubeUrl: valueOf('youtubeUrlInput', track.youtubeUrl),
-    beatportUrl: track.beatportUrl,
+    beatportUrl: valueOf('beatportUrlInput', track.beatportUrl),
     descriptionShort: valueOf('shortDescriptionInput', track.descriptionShort),
-    descriptionLong: track.descriptionLong
+    descriptionLong: valueOf('longDescriptionInput', track.descriptionLong)
   };
 
   try {
@@ -1664,6 +1659,30 @@ function bindCoverUpload() {
 
     await uploadCoverFile(file);
     coverFileInput.value = '';
+  });
+}
+
+function bindAlbumCoverUpload() {
+  const uploadAlbumCoverBtn = document.getElementById('uploadAlbumCoverBtn');
+  const albumCoverFileInput = document.getElementById('albumCoverFileInput');
+
+  if (!uploadAlbumCoverBtn || !albumCoverFileInput) {
+    return;
+  }
+
+  uploadAlbumCoverBtn.addEventListener('click', function() {
+    albumCoverFileInput.click();
+  });
+
+  albumCoverFileInput.addEventListener('change', async function() {
+    const file = albumCoverFileInput.files && albumCoverFileInput.files[0];
+
+    if (!file) {
+      return;
+    }
+
+    await uploadAlbumCoverFile(file);
+    albumCoverFileInput.value = '';
   });
 }
 
@@ -1732,6 +1751,82 @@ function fileToBase64(file) {
 
     reader.readAsDataURL(file);
   });
+}
+
+async function uploadAlbumCoverFile(file) {
+  const album = activeAlbumForSave;
+  const uploadAlbumCoverBtn = document.getElementById('uploadAlbumCoverBtn');
+
+  if (!album || !album.id || !currentSession) {
+    setSaveStatus('No album loaded.', 'error');
+    return;
+  }
+
+  if (!file.type || ['image/jpeg', 'image/png', 'image/webp'].indexOf(file.type) === -1) {
+    setSaveStatus('Album cover must be JPG, PNG, or WEBP.', 'error');
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    setSaveStatus('Album cover file is too large. Max 5MB.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Uploading album cover...', '');
+
+  if (uploadAlbumCoverBtn) {
+    uploadAlbumCoverBtn.disabled = true;
+    uploadAlbumCoverBtn.textContent = 'Uploading...';
+  }
+
+  try {
+    const fileBase64 = await fileToBase64(file);
+
+    const response = await fetch('/api/admin-upload-cover', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({
+        resource: 'album',
+        albumId: album.id,
+        fileName: file.name,
+        mimeType: file.type,
+        fileBase64
+      })
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to upload album cover');
+    }
+
+    const modalCover = document.getElementById('albumModalCover');
+
+    if (modalCover && data.coverUrl) {
+      modalCover.src = data.coverUrl;
+    }
+
+    activeAlbumForSave.coverUrl = data.coverUrl;
+    activeAlbumForSave.rawCoverUrl = data.coverUrl;
+
+    setSaveStatus('Album cover uploaded.', 'ok');
+    setFooterButtonToClose();
+
+    await loadAdminAlbums();
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to upload album cover.', 'error');
+  } finally {
+    if (uploadAlbumCoverBtn) {
+      uploadAlbumCoverBtn.disabled = false;
+      uploadAlbumCoverBtn.textContent = 'Upload Album Cover';
+    }
+  }
 }
 
 async function uploadCoverFile(file) {
