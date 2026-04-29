@@ -523,7 +523,7 @@ async function openTrackModal(trackId) {
         <div>
           <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
           <p class="modal-note">
-            Safe edit mode: only Short Description can be changed in this step.
+            Safe edit mode: only Short Description, SoundCloud URL and YouTube URL can be changed in this step.
           </p>
         </div>
 
@@ -549,11 +549,33 @@ async function openTrackModal(trackId) {
           ${detailField('Filename', track.filename, true)}
           ${detailField('Cover URL', track.rawCoverUrl || track.coverUrl, true)}
           ${detailField('Preview URL', track.rawPreviewUrl || track.previewUrl, true)}
-          ${detailField('SoundCloud', track.soundcloudUrl, true)}
+
+          <div class="detail-field full">
+            <p class="detail-label">SoundCloud URL</p>
+            <input
+              id="soundcloudUrlInput"
+              type="url"
+              value="${escapeHtml(track.soundcloudUrl || '')}"
+              placeholder="https://soundcloud.com/..."
+              style="width:100%;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.045);color:#fff;padding:13px 14px;font:inherit;outline:none;"
+            >
+          </div>
+
           ${detailField('Spotify', track.spotifyUrl, true)}
           ${detailField('Apple Music', track.appleMusicUrl, true)}
           ${detailField('Tidal', track.tidalUrl, true)}
-          ${detailField('YouTube', track.youtubeUrl, true)}
+
+          <div class="detail-field full">
+            <p class="detail-label">YouTube URL</p>
+            <input
+              id="youtubeUrlInput"
+              type="url"
+              value="${escapeHtml(track.youtubeUrl || '')}"
+              placeholder="https://youtu.be/..."
+              style="width:100%;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.045);color:#fff;padding:13px 14px;font:inherit;outline:none;"
+            >
+          </div>
+
           ${detailField('Beatport', track.beatportUrl, true)}
 
           <div class="detail-field full">
@@ -564,7 +586,7 @@ async function openTrackModal(trackId) {
             >${escapeHtml(track.descriptionShort || '')}</textarea>
             <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:12px;">
               <span id="shortDescriptionStatus" style="margin-right:auto;color:rgba(255,255,255,.58);font-size:.86rem;"></span>
-              <button id="saveShortDescriptionBtn" type="button">Save Description</button>
+              <button id="saveShortDescriptionBtn" type="button">Save Changes</button>
             </div>
           </div>
 
@@ -589,11 +611,13 @@ async function openTrackModal(trackId) {
 async function saveShortDescription(track) {
   if (!track || !track.id || !currentSession) return;
 
-  const input = document.getElementById('shortDescriptionInput');
+  const shortDescriptionInput = document.getElementById('shortDescriptionInput');
+  const soundcloudUrlInput = document.getElementById('soundcloudUrlInput');
+  const youtubeUrlInput = document.getElementById('youtubeUrlInput');
   const status = document.getElementById('shortDescriptionStatus');
   const button = document.getElementById('saveShortDescriptionBtn');
 
-  if (!input || !button) return;
+  if (!shortDescriptionInput || !button) return;
 
   setLastActivity();
 
@@ -621,13 +645,13 @@ async function saveShortDescription(track) {
     isFeatured: track.isFeatured,
     isLatestRelease: track.isLatestRelease,
     slug: track.slug,
-    soundcloudUrl: track.soundcloudUrl,
+    soundcloudUrl: soundcloudUrlInput ? soundcloudUrlInput.value.trim() : track.soundcloudUrl,
     spotifyUrl: track.spotifyUrl,
     appleMusicUrl: track.appleMusicUrl,
     tidalUrl: track.tidalUrl,
-    youtubeUrl: track.youtubeUrl,
+    youtubeUrl: youtubeUrlInput ? youtubeUrlInput.value.trim() : track.youtubeUrl,
     beatportUrl: track.beatportUrl,
-    descriptionShort: input.value.trim(),
+    descriptionShort: shortDescriptionInput.value.trim(),
     descriptionLong: track.descriptionLong
   };
 
@@ -646,13 +670,17 @@ async function saveShortDescription(track) {
     });
 
     if (!response.ok) {
-      throw new Error(data.error || 'Unable to save description');
+      throw new Error(data.error || 'Unable to save changes');
     }
 
     if (status) {
       status.style.color = '#9fe6b8';
       status.textContent = 'Saved.';
     }
+
+    track.soundcloudUrl = data.track.soundcloudUrl;
+    track.youtubeUrl = data.track.youtubeUrl;
+    track.descriptionShort = data.track.descriptionShort;
 
     await loadAdminTracks();
   } catch (err) {
@@ -662,7 +690,7 @@ async function saveShortDescription(track) {
     }
   } finally {
     button.disabled = false;
-    button.textContent = 'Save Description';
+    button.textContent = 'Save Changes';
   }
 }
 
