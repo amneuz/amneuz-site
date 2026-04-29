@@ -5,9 +5,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const MASTER_BUCKET = 'masters';
+const LEGACY_BUCKET = 'tracks';
+
 const rateLimitWindowMs = 60 * 1000;
 const rateLimitMaxRequests = 12;
 const rateLimitMap = new Map();
+
 const duplicateWindowMs = 5 * 1000;
 const duplicateDownloadMap = new Map();
 
@@ -77,6 +81,42 @@ async function getTrackByTrackId(trackId) {
   return data && data.length ? data[0] : null;
 }
 
+async function getSignedUrlFromBucket(bucket, path) {
+  const { data, error } = await supabase
+    .storage
+    .from(bucket)
+    .createSignedUrl(path, 60);
+
+  if (error || !data || !data.signedUrl) {
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
+async function fetchMasterFile(masterPath) {
+  const bucketsToTry = [MASTER_BUCKET, LEGACY_BUCKET];
+
+  for (const bucket of bucketsToTry) {
+    const signedUrl = await getSignedUrlFromBucket(bucket, masterPath);
+
+    if (!signedUrl) {
+      continue;
+    }
+
+    const fileResponse = await fetch(signedUrl);
+
+    if (fileResponse.ok) {
+      return {
+        bucket,
+        fileResponse
+      };
+    }
+  }
+
+  return null;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -141,9 +181,22 @@ module.exports = async function handler(req, res) {
     }
 
     duplicateDownloadMap.set(duplicateKey, Date.now());
+
     setTimeout(function() {
       duplicateDownloadMap.delete(duplicateKey);
     }, duplicateWindowMs);
+
+    const masterFile = await fetchMasterFile(track.master_path);
+
+    if (!masterFile || !masterFile.fileResponse) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const fileBuffer = Buffer.from(await masterFile.fileResponse.arrayBuffer());
+
+    if (!fileBuffer.length) {
+      return res.status(500).json({ error: 'Unable to process download' });
+    }
 
     const { data: updatedItems, error: updateError } = await supabase
       .rpc('increment_order_item_download', {
@@ -160,28 +213,12 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Download limit reached' });
     }
 
-    const { data: signedUrlData, error: urlError } = await supabase
-      .storage
-      .from('tracks')
-      .createSignedUrl(track.master_path, 60);
-
-    if (urlError || !signedUrlData || !signedUrlData.signedUrl) {
-      console.error('Signed URL failed:', urlError && (urlError.message || urlError));
-      return res.status(500).json({ error: 'Unable to process download' });
-    }
-
-    const fileResponse = await fetch(signedUrlData.signedUrl);
-
-    if (!fileResponse.ok) {
-      return res.status(500).json({ error: 'Unable to process download' });
-    }
-
-    const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
     const filename = safeFilename(track.filename || `${formatTrackTitle(track)}.wav`);
 
-    res.setHeader('Content-Type', fileResponse.headers.get('content-type') || 'application/octet-stream');
+    res.setHeader('Content-Type', masterFile.fileResponse.headers.get('content-type') || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', fileBuffer.length);
+    res.setHeader('Cache-Control', 'no-store');
 
     return res.status(200).send(fileBuffer);
   } catch (error) {
