@@ -161,28 +161,155 @@ function normalizeTrack(t){
   }
 }
 
-function normalizeAlbum(a){
-  var albumTracks=Array.isArray(a.tracks)?a.tracks.map(normalizeTrack):[];
+function albumRow(album){
+  var wrap=document.createElement('article');
+  var isOpen=openAlbumIds.indexOf(album.id)>-1;
+  var added=isAlbumInCart(album.id);
+  var tracksCount=album.tracks.length;
+  var metaText=[
+    (album.releaseType||'album').toUpperCase(),
+    album.release||'Release TBA',
+    tracksCount?tracksCount+' tracks':'No tracks linked'
+  ].filter(Boolean).join(' · ');
 
-  return {
-    id:String(a.id||''),
-    slug:a.slug||'',
-    releaseType:a.releaseType||a.release_type||'album',
-    title:a.title||'Untitled Album',
-    rawTitle:a.rawTitle||a.raw_title||'',
-    artist:a.artist||'AMNEUZ',
-    collaborators:a.collaborators||'',
-    release:a.release||a.release_year||'',
-    releaseDate:a.releaseDate||a.release_date||'',
-    cover:a.cover||a.cover_url||'',
-    stripePriceId:a.stripePriceId||a.stripe_price_id||'',
-    priceMxn:a.priceMxn||a.price_mxn||0,
-    isFeatured:!!(a.isFeatured||a.is_featured),
-    isLatestRelease:!!(a.isLatestRelease||a.is_latest_release),
-    descriptionShort:a.descriptionShort||a.description_short||'',
-    descriptionLong:a.descriptionLong||a.description_long||'',
-    tracks:albumTracks
+  wrap.className='track album-release';
+  wrap.setAttribute('data-album-id',album.id);
+
+  wrap.innerHTML=
+    '<div class="track-media">'+
+      '<img class="track-cover album-cover" alt="">'+
+    '</div>'+
+    '<div class="track-body">'+
+      '<div class="track-top">'+
+        '<div class="track-title-wrap">'+
+          '<p class="track-label">Complete release</p>'+
+          '<div class="track-title-row"><h3 class="ttitle"></h3></div>'+
+          '<p class="track-meta album-meta"></p>'+
+          '<p class="album-description"></p>'+
+        '</div>'+
+      '</div>'+
+      '<p class="track-listen album-listen">Choose your platform</p>'+
+      '<div class="track-platforms album-platforms"></div>'+
+      '<div class="album-track-list"></div>'+
+    '</div>'+
+    '<div class="track-buy">'+
+      '<p class="track-price album-price"></p>'+
+      '<p class="track-quality">Complete album WAV</p>'+
+      '<button class="tbtn addAlbumBtn" type="button"></button>'+
+      '<button class="tbtn albumToggleBtn" type="button"></button>'+
+    '</div>';
+
+  wrap.querySelector('.album-cover').src=album.cover||(album.tracks[0]&&album.tracks[0].cover)||'';
+  wrap.querySelector('.album-cover').alt=album.title;
+  wrap.querySelector('.ttitle').textContent=album.title;
+  wrap.querySelector('.album-meta').textContent=metaText;
+  wrap.querySelector('.album-description').textContent=album.descriptionShort||'Buy the complete release or open it to choose individual tracks.';
+  wrap.querySelector('.album-price').textContent=money(price(album));
+
+  var platformBox=wrap.querySelector('.album-platforms');
+  appendPlatform(platformBox,'SoundCloud',album.soundcloud);
+  appendPlatform(platformBox,'Spotify',album.spotify);
+  appendPlatform(platformBox,'Apple Music',album.appleMusic);
+  appendPlatform(platformBox,'Tidal',album.tidal);
+  appendPlatform(platformBox,'YouTube',album.youtube);
+  appendPlatform(platformBox,'Beatport',album.beatport);
+
+  if(!platformBox.children.length){
+    var emptyPlatform=document.createElement('span');
+    emptyPlatform.className='track-platform album-platform-empty';
+    emptyPlatform.textContent='Platforms coming soon';
+    platformBox.appendChild(emptyPlatform);
   }
+
+  var addBtn=wrap.querySelector('.addAlbumBtn');
+  addBtn.textContent=added?'Album Added':'Add Album';
+  addBtn.classList.toggle('added',added);
+
+  var toggleBtn=wrap.querySelector('.albumToggleBtn');
+  toggleBtn.textContent=isOpen?'Hide Tracks':'View Tracks';
+
+  var list=wrap.querySelector('.album-track-list');
+  list.style.display=isOpen?'grid':'none';
+
+  if(isOpen){
+    album.tracks.forEach(function(t){
+      var item=document.createElement('div');
+      var trackAdded=isTrackInCart(t.id);
+
+      item.className='album-track-item';
+      item.innerHTML=
+        '<div>'+
+          '<p class="album-track-title"></p>'+
+          '<p class="album-track-meta"></p>'+
+        '</div>'+
+        '<div class="album-track-actions">'+
+          '<span class="album-track-price"></span>'+
+          '<button class="admin-mini-btn albumTrackPreview" type="button">Preview</button>'+
+          '<button class="admin-mini-btn albumTrackAdd" type="button"></button>'+
+        '</div>';
+
+      item.querySelector('.album-track-title').textContent=(t.trackNumber?String(t.trackNumber).padStart(2,'0')+'. ':'')+t.title;
+      item.querySelector('.album-track-meta').textContent=[t.genre,t.key,t.bpm?String(t.bpm)+' BPM':'',t.duration].filter(Boolean).join(' · ');
+      item.querySelector('.album-track-price').textContent=money(price(t));
+
+      item.querySelector('.albumTrackPreview').onclick=function(e){
+        e.stopPropagation();
+        togglePreview(t);
+      };
+
+      item.querySelector('.albumTrackAdd').textContent=trackAdded?'Added':'Add Track';
+      item.querySelector('.albumTrackAdd').classList.toggle('added',trackAdded);
+      item.querySelector('.albumTrackAdd').onclick=function(e){
+        e.stopPropagation();
+        var key=cartKey('track',t.id);
+        if(cart.indexOf(key)===-1){
+          cart.push(key);
+          saveStoredCart();
+        }
+        renderCart();
+        renderCatalog(activeCat());
+      };
+
+      list.appendChild(item);
+    });
+  }
+
+  addBtn.onclick=function(e){
+    e.stopPropagation();
+    var key=cartKey('album',album.id);
+    if(cart.indexOf(key)===-1){
+      cart.push(key);
+      saveStoredCart();
+    }
+    renderCart();
+    renderCatalog(activeCat());
+  };
+
+  toggleBtn.onclick=function(e){
+    e.stopPropagation();
+    if(openAlbumIds.indexOf(album.id)>-1){
+      openAlbumIds=openAlbumIds.filter(function(x){return x!==album.id});
+    }else{
+      openAlbumIds.push(album.id);
+    }
+    renderCatalog(activeCat());
+  };
+
+  wrap.onclick=function(e){
+    if(e.target.closest('button')||e.target.closest('a')){
+      return;
+    }
+
+    if(openAlbumIds.indexOf(album.id)>-1){
+      openAlbumIds=openAlbumIds.filter(function(x){return x!==album.id});
+    }else{
+      openAlbumIds.push(album.id);
+    }
+
+    renderCatalog(activeCat());
+  };
+
+  return wrap;
 }
 
 function setTracksFromData(data){
@@ -798,19 +925,25 @@ function ensureAlbumStyles(){
   var style=document.createElement('style');
   style.id='albumStyles';
   style.textContent=
-    '.album-release{border:1px solid rgba(255,255,255,.14);border-radius:28px;background:rgba(0,0,0,.35);overflow:hidden;margin-bottom:22px;}'+
-    '.album-release-main{display:grid;grid-template-columns:120px 1fr auto;gap:22px;align-items:start;padding:22px;}'+
+    '.album-release{cursor:pointer;transition:border-color .22s ease,background .22s ease,transform .22s ease,box-shadow .22s ease;}'+
+    '.album-release:hover{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.055);box-shadow:0 18px 48px rgba(0,0,0,.28);}'+
+    '.album-release .track-body{min-width:0;}'+
     '.album-release .track-buy{gap:10px;}'+
     '.album-description{margin:12px 0 0;color:rgba(255,255,255,.62);line-height:1.5;max-width:680px;}'+
+    '.album-listen{margin-top:18px;}'+
+    '.album-platforms{margin-top:8px;}'+
+    '.album-platform-empty{pointer-events:none;opacity:.55;}'+
     '.album-track-list{margin-top:22px;gap:10px;}'+
-    '.album-track-item{display:flex;justify-content:space-between;gap:18px;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.035);padding:12px 14px;}'+
+    '.album-track-item{display:flex;justify-content:space-between;gap:18px;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.035);padding:12px 14px;transition:border-color .2s ease,background .2s ease,transform .2s ease;}'+
+    '.album-track-item:hover{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.075);transform:translateX(3px);}'+
     '.album-track-title{margin:0;color:#fff;font-weight:700;}'+
     '.album-track-meta{margin:5px 0 0;color:rgba(255,255,255,.54);font-size:.86rem;}'+
     '.album-track-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}'+
     '.album-track-price{color:#fff;font-weight:700;white-space:nowrap;}'+
-    '.admin-mini-btn{border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.035);color:rgba(255,255,255,.72);padding:7px 10px 6px;font-size:.64rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;}'+
+    '.admin-mini-btn{border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.035);color:rgba(255,255,255,.72);padding:7px 10px 6px;font-size:.64rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .2s ease,border-color .2s ease,color .2s ease;}'+
+    '.admin-mini-btn:hover{color:#fff;background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.28);}'+
     '.admin-mini-btn.added{background:rgba(85,255,140,.12);border-color:rgba(85,255,140,.28);color:rgba(190,255,210,.95);}'+
-    '@media(max-width:760px){.album-release-main{grid-template-columns:84px 1fr;}.album-release .track-buy{grid-column:1/-1;align-items:flex-start;text-align:left;}.album-track-item{align-items:flex-start;flex-direction:column;}.album-track-actions{justify-content:flex-start;}}';
+    '@media(max-width:760px){.album-release{grid-template-columns:84px 1fr;}.album-release .track-buy{grid-column:1/-1;align-items:flex-start;text-align:left;}.album-track-item{align-items:flex-start;flex-direction:column;}.album-track-actions{justify-content:flex-start;}}';
 
   document.head.appendChild(style);
 }
