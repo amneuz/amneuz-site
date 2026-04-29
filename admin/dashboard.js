@@ -12,13 +12,15 @@ const trackModal = document.getElementById('trackModal');
 const trackModalTitle = document.getElementById('trackModalTitle');
 const trackModalBody = document.getElementById('trackModalBody');
 const closeTrackModal = document.getElementById('closeTrackModal');
-const closeTrackModalFooter = document.getElementById('closeTrackModalFooter');
+const saveTrackModalFooter = document.getElementById('saveTrackModalFooter');
+const trackSaveStatus = document.getElementById('trackSaveStatus');
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_KEY = 'amneuz_admin_last_activity';
 
 let timeoutId = null;
 let currentSession = null;
+let activeTrackForSave = null;
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -488,6 +490,15 @@ function closeModal() {
   trackModal.setAttribute('aria-hidden', 'true');
   trackModalTitle.textContent = 'Loading track...';
   trackModalBody.innerHTML = '<p>Loading...</p>';
+  activeTrackForSave = null;
+  setSaveStatus('', '');
+  saveTrackModalFooter.disabled = false;
+  saveTrackModalFooter.textContent = 'Save Changes';
+}
+
+function setSaveStatus(message, type) {
+  trackSaveStatus.textContent = message || '';
+  trackSaveStatus.className = type ? `modal-save-status ${type}` : 'modal-save-status';
 }
 
 async function openTrackModal(trackId) {
@@ -497,6 +508,8 @@ async function openTrackModal(trackId) {
 
   trackModalTitle.textContent = 'Loading track...';
   trackModalBody.innerHTML = '<p>Loading...</p>';
+  activeTrackForSave = null;
+  setSaveStatus('', '');
   openModal();
 
   try {
@@ -515,6 +528,7 @@ async function openTrackModal(trackId) {
     }
 
     const track = data.track;
+    activeTrackForSave = track;
 
     trackModalTitle.textContent = track.displayTitle || track.title || 'Track details';
 
@@ -523,7 +537,7 @@ async function openTrackModal(trackId) {
         <div>
           <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
           <p class="modal-note">
-            Safe edit mode: only Short Description, SoundCloud URL and YouTube URL can be changed in this step.
+            Editable now: SoundCloud, YouTube and Short Description.
           </p>
         </div>
 
@@ -554,10 +568,10 @@ async function openTrackModal(trackId) {
             <p class="detail-label">SoundCloud URL</p>
             <input
               id="soundcloudUrlInput"
+              class="admin-edit-input"
               type="url"
               value="${escapeHtml(track.soundcloudUrl || '')}"
               placeholder="https://soundcloud.com/..."
-              style="width:100%;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.045);color:#fff;padding:13px 14px;font:inherit;outline:none;"
             >
           </div>
 
@@ -569,10 +583,10 @@ async function openTrackModal(trackId) {
             <p class="detail-label">YouTube URL</p>
             <input
               id="youtubeUrlInput"
+              class="admin-edit-input"
               type="url"
               value="${escapeHtml(track.youtubeUrl || '')}"
               placeholder="https://youtu.be/..."
-              style="width:100%;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.045);color:#fff;padding:13px 14px;font:inherit;outline:none;"
             >
           </div>
 
@@ -582,52 +596,43 @@ async function openTrackModal(trackId) {
             <p class="detail-label">Short Description</p>
             <textarea
               id="shortDescriptionInput"
-              style="width:100%;min-height:90px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.045);color:#fff;padding:13px 14px;font:inherit;resize:vertical;outline:none;"
+              class="admin-edit-textarea"
             >${escapeHtml(track.descriptionShort || '')}</textarea>
-            <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:12px;">
-              <span id="shortDescriptionStatus" style="margin-right:auto;color:rgba(255,255,255,.58);font-size:.86rem;"></span>
-              <button id="saveShortDescriptionBtn" type="button">Save Changes</button>
-            </div>
           </div>
 
           ${detailField('Long Description', track.descriptionLong, true)}
         </div>
       </div>
     `;
-
-    const saveDescriptionBtn = document.getElementById('saveShortDescriptionBtn');
-
-    if (saveDescriptionBtn) {
-      saveDescriptionBtn.addEventListener('click', function() {
-        saveShortDescription(track);
-      });
-    }
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
+    activeTrackForSave = null;
   }
 }
 
-async function saveShortDescription(track) {
-  if (!track || !track.id || !currentSession) return;
+async function saveTrackSafeChanges() {
+  const track = activeTrackForSave;
+
+  if (!track || !track.id || !currentSession) {
+    setSaveStatus('No track loaded.', 'error');
+    return;
+  }
 
   const shortDescriptionInput = document.getElementById('shortDescriptionInput');
   const soundcloudUrlInput = document.getElementById('soundcloudUrlInput');
   const youtubeUrlInput = document.getElementById('youtubeUrlInput');
-  const status = document.getElementById('shortDescriptionStatus');
-  const button = document.getElementById('saveShortDescriptionBtn');
 
-  if (!shortDescriptionInput || !button) return;
-
-  setLastActivity();
-
-  if (status) {
-    status.style.color = 'rgba(255,255,255,.58)';
-    status.textContent = 'Saving...';
+  if (!shortDescriptionInput) {
+    setSaveStatus('Nothing to save.', 'error');
+    return;
   }
 
-  button.disabled = true;
-  button.textContent = 'Saving...';
+  setLastActivity();
+  setSaveStatus('Saving...', '');
+
+  saveTrackModalFooter.disabled = true;
+  saveTrackModalFooter.textContent = 'Saving...';
 
   const payload = {
     title: track.title,
@@ -673,24 +678,17 @@ async function saveShortDescription(track) {
       throw new Error(data.error || 'Unable to save changes');
     }
 
-    if (status) {
-      status.style.color = '#9fe6b8';
-      status.textContent = 'Saved.';
-    }
+    activeTrackForSave = data.track;
 
-    track.soundcloudUrl = data.track.soundcloudUrl;
-    track.youtubeUrl = data.track.youtubeUrl;
-    track.descriptionShort = data.track.descriptionShort;
+    setSaveStatus('Saved.', 'ok');
+    trackModalTitle.textContent = data.track.displayTitle || data.track.title || 'Track details';
 
     await loadAdminTracks();
   } catch (err) {
-    if (status) {
-      status.style.color = '#ff9f9f';
-      status.textContent = err.message || 'Unable to save.';
-    }
+    setSaveStatus(err.message || 'Unable to save.', 'error');
   } finally {
-    button.disabled = false;
-    button.textContent = 'Save Changes';
+    saveTrackModalFooter.disabled = false;
+    saveTrackModalFooter.textContent = 'Save Changes';
   }
 }
 
@@ -788,7 +786,7 @@ logoutBtn.addEventListener('click', async function(event) {
 });
 
 closeTrackModal.addEventListener('click', closeModal);
-closeTrackModalFooter.addEventListener('click', closeModal);
+saveTrackModalFooter.addEventListener('click', saveTrackSafeChanges);
 
 trackModal.addEventListener('click', function(event) {
   if (event.target === trackModal) {

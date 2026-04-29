@@ -33,7 +33,7 @@
 
     .brand{
       font-weight:700;
-      letter-spacing:.34em;
+      letter-spacing:.22em;
     }
 
     .panel{
@@ -68,6 +68,11 @@
 
     button:hover{
       background:rgba(255,255,255,.08);
+    }
+
+    button:disabled{
+      opacity:.55;
+      cursor:wait;
     }
 
     .status{
@@ -181,12 +186,56 @@
       word-break:break-word;
     }
 
+    .admin-edit-input,
+    .admin-edit-textarea{
+      width:100%;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;
+      background:rgba(255,255,255,.045);
+      color:#fff;
+      padding:13px 14px;
+      font:inherit;
+      outline:none;
+    }
+
+    .admin-edit-input:focus,
+    .admin-edit-textarea:focus{
+      border-color:rgba(92,121,255,.55);
+      box-shadow:0 0 0 3px rgba(92,121,255,.12);
+    }
+
+    .admin-edit-textarea{
+      min-height:90px;
+      resize:vertical;
+    }
+
     .modal-footer{
       display:flex;
+      align-items:center;
       justify-content:flex-end;
       gap:12px;
       padding:20px 24px 24px;
       border-top:1px solid rgba(255,255,255,.1);
+    }
+
+    .modal-save-status{
+      margin-right:auto;
+      color:rgba(255,255,255,.58);
+      font-size:.86rem;
+      line-height:1.4;
+    }
+
+    .modal-save-status.ok{
+      color:#9fe6b8;
+    }
+
+    .modal-save-status.error{
+      color:#ff9f9f;
+    }
+
+    .modal-save-btn{
+      background:#f4f4f4;
+      color:#050505;
     }
 
     .modal-note{
@@ -225,6 +274,11 @@
 
       .modal-footer{
         flex-direction:column;
+        align-items:stretch;
+      }
+
+      .modal-save-status{
+        margin-right:0;
       }
 
       .modal-footer button{
@@ -252,7 +306,7 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="trackModalTitle">
       <div class="modal-header">
         <div>
-          <p class="modal-eyebrow">Track Details</p>
+          <p class="modal-eyebrow">Track Editor</p>
           <h2 class="modal-title" id="trackModalTitle">Loading track...</h2>
         </div>
         <button id="closeTrackModal" type="button">Close</button>
@@ -263,7 +317,8 @@
       </div>
 
       <div class="modal-footer">
-        <button id="closeTrackModalFooter" type="button">Close</button>
+        <span id="trackSaveStatus" class="modal-save-status"></span>
+        <button id="saveTrackModalFooter" class="modal-save-btn" type="button">Save Changes</button>
       </div>
     </div>
   </div>
