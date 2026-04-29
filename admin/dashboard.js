@@ -616,7 +616,7 @@ async function openTrackModal(trackId) {
           ${detailField('Category', track.category)}
           ${editableInput('Subgenre', 'subgenreInput', track.subgenre, 'text')}
           ${editableInput('Key', 'keyInput', track.key, 'text')}
-          ${editableInput('BPM', 'bpmInput', track.bpm, 'number')}
+          ${editableInput('BPM', 'bpmInput', track.bpm, 'text')}
           ${editableInput('Duration', 'durationLabelInput', track.durationLabel, 'text')}
           ${detailField('Release Year', track.releaseYear)}
           ${detailField('Price', money(track.priceMxn))}
