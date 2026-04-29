@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://lydrhgqzqaxfaokvxqhs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -358,8 +358,15 @@ function ensureTracksSection() {
       width: 100%;
       margin-top: 12px;
       border: 1px solid rgba(92,121,255,.34);
+      border-radius: 999px;
       background: rgba(49,69,180,.12);
       color: rgba(226,232,255,.94);
+      padding: 11px 14px 9px;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      cursor: pointer;
     }
 
     .upload-cover-btn:hover {
@@ -374,6 +381,16 @@ function ensureTracksSection() {
 
     .upload-preview-btn:hover {
       background: rgba(61,132,92,.22);
+    }
+
+    .upload-master-btn {
+      border-color: rgba(255,255,255,.36);
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.94);
+    }
+
+    .upload-master-btn:hover {
+      background: rgba(255,255,255,.16);
     }
 
     @media (max-width: 760px) {
@@ -627,6 +644,9 @@ async function openTrackModal(trackId) {
 
           <button id="uploadPreviewBtn" class="upload-cover-btn upload-preview-btn" type="button">Upload Preview</button>
           <input id="previewFileInput" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/wave,audio/webm,audio/mp4,audio/aac,audio/ogg" style="display:none;">
+
+          <button id="uploadMasterBtn" class="upload-cover-btn upload-master-btn" type="button">Upload Master</button>
+          <input id="masterFileInput" type="file" accept="audio/wav,audio/x-wav,audio/wave,audio/flac,audio/aiff,audio/x-aiff,application/octet-stream,.wav,.flac,.aif,.aiff" style="display:none;">
         </div>
 
         <div class="track-detail-fields">
@@ -685,6 +705,7 @@ async function openTrackModal(trackId) {
     bindEditableChangeListeners();
     bindCoverUpload();
     bindPreviewUpload();
+    bindMasterUpload();
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
@@ -823,6 +844,30 @@ function bindPreviewUpload() {
 
     await uploadPreviewFile(file);
     previewFileInput.value = '';
+  });
+}
+
+function bindMasterUpload() {
+  const uploadMasterBtn = document.getElementById('uploadMasterBtn');
+  const masterFileInput = document.getElementById('masterFileInput');
+
+  if (!uploadMasterBtn || !masterFileInput) {
+    return;
+  }
+
+  uploadMasterBtn.addEventListener('click', function() {
+    masterFileInput.click();
+  });
+
+  masterFileInput.addEventListener('change', async function() {
+    const file = masterFileInput.files && masterFileInput.files[0];
+
+    if (!file) {
+      return;
+    }
+
+    await uploadMasterFile(file);
+    masterFileInput.value = '';
   });
 }
 
@@ -997,6 +1042,168 @@ async function uploadPreviewFile(file) {
     if (uploadPreviewBtn) {
       uploadPreviewBtn.disabled = false;
       uploadPreviewBtn.textContent = 'Upload Preview';
+    }
+  }
+}
+
+function getMasterMimeType(file) {
+  const name = String(file.name || '').toLowerCase();
+  const type = String(file.type || '').toLowerCase();
+
+  if (type) {
+    return type;
+  }
+
+  if (name.endsWith('.wav')) {
+    return 'audio/wav';
+  }
+
+  if (name.endsWith('.flac')) {
+    return 'audio/flac';
+  }
+
+  if (name.endsWith('.aif') || name.endsWith('.aiff')) {
+    return 'audio/aiff';
+  }
+
+  return '';
+}
+
+function isAllowedMasterFile(file) {
+  const name = String(file.name || '').toLowerCase();
+  const type = getMasterMimeType(file);
+
+  const allowedTypes = [
+    'audio/wav',
+    'audio/x-wav',
+    'audio/wave',
+    'audio/flac',
+    'audio/aiff',
+    'audio/x-aiff',
+    'application/octet-stream'
+  ];
+
+  const allowedExtension =
+    name.endsWith('.wav') ||
+    name.endsWith('.flac') ||
+    name.endsWith('.aif') ||
+    name.endsWith('.aiff');
+
+  return allowedTypes.indexOf(type) > -1 || allowedExtension;
+}
+
+async function uploadMasterFile(file) {
+  const track = activeTrackForSave;
+  const uploadMasterBtn = document.getElementById('uploadMasterBtn');
+
+  if (!track || !track.id || !currentSession) {
+    setSaveStatus('No track loaded.', 'error');
+    return;
+  }
+
+  if (!isAllowedMasterFile(file)) {
+    setSaveStatus('Master must be WAV, FLAC, or AIFF.', 'error');
+    return;
+  }
+
+  if (file.size > 50 * 1024 * 1024) {
+    setSaveStatus('Master file is too large. Current bucket limit is 50MB.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Preparing secure master upload...', '');
+
+  if (uploadMasterBtn) {
+    uploadMasterBtn.disabled = true;
+    uploadMasterBtn.textContent = 'Preparing...';
+  }
+
+  try {
+    const mimeType = getMasterMimeType(file) || 'application/octet-stream';
+
+    const createResponse = await fetch(`/api/admin-track?id=${encodeURIComponent(track.id)}&action=create-master-upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType,
+        fileSize: file.size
+      })
+    });
+
+    const uploadData = await createResponse.json().catch(function() {
+      return {};
+    });
+
+    if (!createResponse.ok) {
+      throw new Error(uploadData.error || 'Unable to prepare master upload');
+    }
+
+    if (!uploadData.path || !uploadData.token) {
+      throw new Error('Missing signed upload data');
+    }
+
+    setSaveStatus('Uploading master directly to Supabase...', '');
+
+    if (uploadMasterBtn) {
+      uploadMasterBtn.textContent = 'Uploading...';
+    }
+
+    const { error: uploadError } = await supabaseClient
+      .storage
+      .from(uploadData.bucket || 'masters')
+      .uploadToSignedUrl(uploadData.path, uploadData.token, file, {
+        contentType: mimeType,
+        upsert: false
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Unable to upload master');
+    }
+
+    setSaveStatus('Finalizing master upload...', '');
+
+    if (uploadMasterBtn) {
+      uploadMasterBtn.textContent = 'Finalizing...';
+    }
+
+    const finalizeResponse = await fetch(`/api/admin-track?id=${encodeURIComponent(track.id)}&action=finalize-master-upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({
+        path: uploadData.path,
+        fileName: file.name
+      })
+    });
+
+    const finalizeData = await finalizeResponse.json().catch(function() {
+      return {};
+    });
+
+    if (!finalizeResponse.ok) {
+      throw new Error(finalizeData.error || 'Unable to finalize master upload');
+    }
+
+    activeTrackForSave.masterPath = finalizeData.masterPath;
+    activeTrackForSave.filename = finalizeData.filename;
+
+    setSaveStatus('Master uploaded.', 'ok');
+    setFooterButtonToClose();
+
+    await loadAdminTracks();
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to upload master.', 'error');
+  } finally {
+    if (uploadMasterBtn) {
+      uploadMasterBtn.disabled = false;
+      uploadMasterBtn.textContent = 'Upload Master';
     }
   }
 }
