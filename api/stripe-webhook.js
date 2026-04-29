@@ -66,7 +66,19 @@ function formatTrackTitle(track) {
   return `${artist} - ${title}`;
 }
 
-function mapTrack(track) {
+function formatAlbumTitle(album) {
+  const artist = album.artist || 'AMNEUZ';
+  const collaborators = album.collaborators || '';
+  const title = album.title || 'Release';
+
+  if (collaborators) {
+    return `${artist} & ${collaborators} - ${title}`;
+  }
+
+  return `${artist} - ${title}`;
+}
+
+function mapTrack(track, purchaseType, parentAlbum) {
   return {
     id: track.legacy_id || track.catalog_code || track.id,
     uuid: track.id,
@@ -77,7 +89,11 @@ function mapTrack(track) {
     bpm: track.bpm || '',
     duration: track.duration_label || '',
     cover: track.cover_url || '',
-    stripePriceId: track.stripe_price_id
+    stripePriceId: track.stripe_price_id,
+    purchaseType: purchaseType || 'track',
+    parentAlbumId: parentAlbum ? parentAlbum.id : null,
+    parentAlbumTitle: parentAlbum ? formatAlbumTitle(parentAlbum) : '',
+    parentAlbumSlug: parentAlbum ? parentAlbum.slug : ''
   };
 }
 
@@ -114,7 +130,151 @@ async function getPurchasedTracksByPriceIds(priceIds) {
     throw error;
   }
 
-  return (data || []).map(mapTrack);
+  return (data || []).map(function(track) {
+    return mapTrack(track, 'track', null);
+  });
+}
+
+async function getPurchasedAlbumsByPriceIds(priceIds) {
+  const uniquePriceIds = priceIds.filter(function(priceId, index, array) {
+    return priceId && array.indexOf(priceId) === index;
+  });
+
+  if (!uniquePriceIds.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('albums')
+    .select(`
+      id,
+      slug,
+      title,
+      artist,
+      collaborators,
+      release_type,
+      cover_url,
+      stripe_price_id,
+      status
+    `)
+    .in('stripe_price_id', uniquePriceIds)
+    .eq('status', 'visible');
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function getTracksForAlbums(albums) {
+  if (!albums.length) {
+    return [];
+  }
+
+  const albumIds = albums.map(function(album) {
+    return album.id;
+  });
+
+  const { data, error } = await supabase
+    .from('tracks')
+    .select(`
+      id,
+      legacy_id,
+      catalog_code,
+      title,
+      artist,
+      collaborators,
+      subgenre,
+      track_key,
+      bpm,
+      duration_label,
+      cover_url,
+      stripe_price_id,
+      status,
+      album_id,
+      track_number
+    `)
+    .in('album_id', albumIds)
+    .eq('status', 'visible')
+    .order('album_id', { ascending: true })
+    .order('track_number', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const albumById = new Map();
+
+  albums.forEach(function(album) {
+    albumById.set(album.id, album);
+  });
+
+  return (data || []).map(function(track) {
+    const parentAlbum = albumById.get(track.album_id);
+    return mapTrack(track, 'album', parentAlbum || null);
+  });
+}
+
+function uniqueTracksById(tracks) {
+  const seen = new Set();
+  const output = [];
+
+  tracks.forEach(function(track) {
+    const key = track.id;
+
+    if (!key || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    output.push(track);
+  });
+
+  return output;
+}
+
+function getLineItemPriceIds(lineItems) {
+  return lineItems.data
+    .map(function(item) {
+      return item.price && item.price.id;
+    })
+    .filter(Boolean);
+}
+
+function buildPriceMap(lineItems) {
+  const lineItemByPriceId = new Map();
+
+  lineItems.data.forEach(function(item) {
+    if (item.price && item.price.id) {
+      lineItemByPriceId.set(item.price.id, item);
+    }
+  });
+
+  return lineItemByPriceId;
+}
+
+function getTrackPriceLabel(track, albumPriceByAlbumId, lineItemByPriceId, session) {
+  if (track.purchaseType === 'album') {
+    const albumPrice = track.parentAlbumId ? albumPriceByAlbumId.get(track.parentAlbumId) : null;
+
+    if (albumPrice) {
+      return 'Included';
+    }
+
+    return 'Included';
+  }
+
+  const item = lineItemByPriceId.get(track.stripePriceId);
+
+  if (item) {
+    return formatAmount(
+      item.amount_total || item.amount_subtotal || item.price.unit_amount,
+      item.currency || session.currency
+    );
+  }
+
+  return 'Included';
 }
 
 module.exports.config = {
@@ -173,20 +333,35 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: 'Unable to process webhook' });
     }
 
-    const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+      limit: 100
+    });
 
-    const priceIds = lineItems.data
-      .map(function(item) {
-        return item.price && item.price.id;
-      })
-      .filter(Boolean);
+    const priceIds = getLineItemPriceIds(lineItems);
+    const lineItemByPriceId = buildPriceMap(lineItems);
 
-    const purchasedTracks = await getPurchasedTracksByPriceIds(priceIds);
+    const purchasedTracksDirectly = await getPurchasedTracksByPriceIds(priceIds);
+    const purchasedAlbums = await getPurchasedAlbumsByPriceIds(priceIds);
+    const purchasedAlbumTracks = await getTracksForAlbums(purchasedAlbums);
+
+    const purchasedTracks = uniqueTracksById(
+      purchasedTracksDirectly.concat(purchasedAlbumTracks)
+    );
 
     if (!purchasedTracks.length) {
       console.error('No purchased tracks found for price IDs:', priceIds);
       return res.status(500).json({ error: 'Unable to process webhook' });
     }
+
+    const albumPriceByAlbumId = new Map();
+
+    purchasedAlbums.forEach(function(album) {
+      const item = lineItemByPriceId.get(album.stripe_price_id);
+
+      if (item) {
+        albumPriceByAlbumId.set(album.id, item);
+      }
+    });
 
     const trackIds = purchasedTracks.map(function(track) {
       return track.id;
@@ -236,21 +411,40 @@ module.exports = async (req, res) => {
     const orderDate = session.created ? new Date(session.created * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC') : 'Not available';
     const totalPaid = formatAmount(session.amount_total, session.currency);
     const trackCount = purchasedTracks.length;
-    const purchaseSummary = trackCount === 1 ? 'You bought 1 track' : `You bought ${trackCount} tracks`;
-    const ctaText = trackCount === 1 ? 'DOWNLOAD YOUR TRACK' : 'DOWNLOAD YOUR TRACKS';
-    const downloadNote = trackCount === 1 ? 'Your download is limited to 3 attempts for this track. Keep this email private.' : 'Your downloads are limited to 3 attempts per track. Keep this email private.';
-    const lineItemByPriceId = new Map();
+    const albumCount = purchasedAlbums.length;
 
-    lineItems.data.forEach(function(item) {
-      if (item.price && item.price.id) {
-        lineItemByPriceId.set(item.price.id, item);
-      }
-    });
+    const purchaseSummaryParts = [];
+
+    if (albumCount === 1) {
+      purchaseSummaryParts.push('1 album');
+    } else if (albumCount > 1) {
+      purchaseSummaryParts.push(`${albumCount} albums`);
+    }
+
+    const directTrackCount = purchasedTracksDirectly.length;
+
+    if (directTrackCount === 1) {
+      purchaseSummaryParts.push('1 track');
+    } else if (directTrackCount > 1) {
+      purchaseSummaryParts.push(`${directTrackCount} tracks`);
+    }
+
+    const purchaseSummary = purchaseSummaryParts.length
+      ? `You bought ${purchaseSummaryParts.join(' + ')}`
+      : (trackCount === 1 ? 'You bought 1 track' : `You bought ${trackCount} tracks`);
+
+    const ctaText = trackCount === 1 ? 'DOWNLOAD YOUR TRACK' : 'DOWNLOAD YOUR TRACKS';
+    const downloadNote = trackCount === 1
+      ? 'Your download is limited to 3 attempts for this track. Keep this email private.'
+      : 'Your downloads are limited to 3 attempts per track. Keep this email private.';
 
     const trackRows = purchasedTracks.map(function(track) {
-      const item = lineItemByPriceId.get(track.stripePriceId);
-      const trackPrice = item ? formatAmount(item.amount_total || item.amount_subtotal || item.price.unit_amount, item.currency || session.currency) : 'Included';
+      const trackPrice = getTrackPriceLabel(track, albumPriceByAlbumId, lineItemByPriceId, session);
       const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : '', track.duration].filter(Boolean).join(' · ');
+      const albumLabel = track.purchaseType === 'album' && track.parentAlbumTitle
+        ? `Included in ${track.parentAlbumTitle}`
+        : '';
+      const secondaryDetails = [details, albumLabel].filter(Boolean).join(' · ');
       const coverUrl = publicHttpsUrl(track.cover, baseUrl);
       const coverCell = coverUrl ? `
               <td width="64" valign="top" style="width:64px;padding:0 14px 0 0;">
@@ -266,7 +460,7 @@ module.exports = async (req, res) => {
                 ${coverCell}
                 <td valign="middle" style="padding:0;">
                   <div style="font-size:17px;line-height:1.35;font-weight:700;color:#ffffff;">${escapeHtml(track.title)}</div>
-                  <div style="margin-top:6px;font-size:13px;line-height:1.45;color:#9b9b9b;">${escapeHtml(details || 'AMNEUZ release')}</div>
+                  <div style="margin-top:6px;font-size:13px;line-height:1.45;color:#9b9b9b;">${escapeHtml(secondaryDetails || 'AMNEUZ release')}</div>
                 </td>
               </tr>
             </table>
@@ -277,11 +471,14 @@ module.exports = async (req, res) => {
     }).join('');
 
     const plainTrackLines = purchasedTracks.map(function(track) {
-      const item = lineItemByPriceId.get(track.stripePriceId);
-      const trackPrice = item ? formatAmount(item.amount_total || item.amount_subtotal || item.price.unit_amount, item.currency || session.currency) : 'Included';
+      const trackPrice = getTrackPriceLabel(track, albumPriceByAlbumId, lineItemByPriceId, session);
       const details = [track.genre, track.key, track.bpm ? `${track.bpm} BPM` : '', track.duration].filter(Boolean).join(' · ');
+      const albumLabel = track.purchaseType === 'album' && track.parentAlbumTitle
+        ? `Included in ${track.parentAlbumTitle}`
+        : '';
+      const secondaryDetails = [details, albumLabel].filter(Boolean).join(' · ');
 
-      return `- ${track.title}${details ? ` (${details})` : ''} - ${trackPrice}`;
+      return `- ${track.title}${secondaryDetails ? ` (${secondaryDetails})` : ''} - ${trackPrice}`;
     }).join('\n');
 
     try {
@@ -289,7 +486,7 @@ module.exports = async (req, res) => {
         from: 'AMNEUZ Music <music@amneuz.com>',
         to: email,
         reply_to: 'music@amneuz.com',
-        subject: 'Your AMNEUZ tracks are ready',
+        subject: albumCount ? 'Your AMNEUZ release is ready' : 'Your AMNEUZ tracks are ready',
         html: `
           <div style="margin:0;padding:0;background:#050505;color:#f5f5f5;font-family:Arial,Helvetica,sans-serif;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:#050505;border-collapse:collapse;">
@@ -303,7 +500,7 @@ module.exports = async (req, res) => {
                     </tr>
                     <tr>
                       <td style="border:1px solid #242424;background:#0b0b0b;border-radius:18px;padding:34px 30px;box-shadow:0 24px 60px rgba(0,0,0,0.45);">
-                        <h1 style="margin:0;font-size:34px;line-height:1.08;letter-spacing:-1px;color:#ffffff;font-weight:700;text-align:center;">Your tracks are ready</h1>
+                        <h1 style="margin:0;font-size:34px;line-height:1.08;letter-spacing:-1px;color:#ffffff;font-weight:700;text-align:center;">Your music is ready</h1>
                         <p style="margin:18px auto 0;max-width:460px;font-size:16px;line-height:1.65;color:#ffffff;text-align:center;">${escapeHtml(greeting)}</p>
                         <p style="margin:10px auto 0;max-width:460px;font-size:16px;line-height:1.65;color:#bdbdbd;text-align:center;">Thank you for supporting AMNEUZ directly.</p>
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:30px;width:100%;border-collapse:collapse;">
@@ -349,7 +546,7 @@ module.exports = async (req, res) => {
             </table>
           </div>
         `,
-        text: `Your tracks are ready
+        text: `Your music is ready
 
 ${greeting}
 
@@ -361,7 +558,7 @@ Total paid: ${totalPaid}
 
 ${purchaseSummary}
 
-Purchased tracks:
+Included music:
 ${plainTrackLines}
 
 Download page:
