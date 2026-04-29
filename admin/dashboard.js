@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://lydrhgqzqaxfaokvxqhs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJseWRyaGdxcXFheGZhb2t2eHFocyIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzc3MDk1Mjc3LCJleHAiOjIwOTI2NzEyNzd9.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -21,6 +21,7 @@ const ACTIVITY_KEY = 'amneuz_admin_last_activity';
 let timeoutId = null;
 let currentSession = null;
 let activeTrackForSave = null;
+let activeAlbumForSave = null;
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -60,6 +61,13 @@ function statusLabel(status) {
   if (value === 'upcoming') return 'Upcoming';
 
   return value;
+}
+
+function releaseTypeLabel(value) {
+  const type = String(value || 'album').toLowerCase();
+
+  if (type === 'ep') return 'EP';
+  return 'Album';
 }
 
 async function sendAudit(action) {
@@ -122,43 +130,16 @@ function registerActivityListeners() {
   });
 }
 
-function ensureTracksSection() {
-  let section = document.getElementById('tracksSection');
-
-  if (section) {
-    return section;
+function ensureAdminStyles() {
+  if (document.getElementById('adminDynamicStyles')) {
+    return;
   }
 
-  const main = document.querySelector('main') || document.body;
-
-  section = document.createElement('section');
-  section.id = 'tracksSection';
-  section.className = 'admin-tracks-section';
-  section.innerHTML = `
-    <div class="admin-section-header">
-      <div>
-        <p class="admin-eyebrow">Catalog</p>
-        <h2>Tracks</h2>
-        <p class="admin-muted">Live catalog data from Supabase.</p>
-      </div>
-
-      <div class="admin-header-actions">
-        <button class="admin-secondary-btn admin-create-btn" type="button" id="newTrackBtn">New Track</button>
-        <button class="admin-secondary-btn" type="button" id="refreshTracksBtn">Refresh</button>
-      </div>
-    </div>
-
-    <div class="admin-stats" id="tracksStats"></div>
-    <div class="admin-tracks-list" id="tracksList">
-      <p class="admin-muted">Loading tracks...</p>
-    </div>
-  `;
-
-  main.appendChild(section);
-
   const style = document.createElement('style');
+  style.id = 'adminDynamicStyles';
   style.textContent = `
-    .admin-tracks-section {
+    .admin-tracks-section,
+    .admin-albums-section {
       margin-top: 28px;
       border: 1px solid rgba(255,255,255,.14);
       border-radius: 24px;
@@ -258,12 +239,14 @@ function ensureTracksSection() {
       text-transform: uppercase;
     }
 
-    .admin-tracks-list {
+    .admin-tracks-list,
+    .admin-albums-list {
       display: grid;
       gap: 14px;
     }
 
-    .admin-track-card {
+    .admin-track-card,
+    .admin-album-card {
       display: grid;
       grid-template-columns: 72px 1fr auto;
       gap: 16px;
@@ -274,7 +257,8 @@ function ensureTracksSection() {
       padding: 14px;
     }
 
-    .admin-track-cover {
+    .admin-track-cover,
+    .admin-album-cover {
       width: 72px;
       height: 72px;
       border-radius: 16px;
@@ -282,14 +266,16 @@ function ensureTracksSection() {
       background: rgba(255,255,255,.08);
     }
 
-    .admin-track-title {
+    .admin-track-title,
+    .admin-album-title {
       margin: 0;
       color: #fff;
       font-size: 1.14rem;
       letter-spacing: -.02em;
     }
 
-    .admin-track-meta {
+    .admin-track-meta,
+    .admin-album-meta {
       margin: 7px 0 0;
       color: rgba(255,255,255,.58);
       font-size: .86rem;
@@ -330,19 +316,22 @@ function ensureTracksSection() {
       color: rgba(255,255,255,.55);
     }
 
-    .admin-track-side {
+    .admin-track-side,
+    .admin-album-side {
       min-width: 128px;
       text-align: right;
     }
 
-    .admin-track-price {
+    .admin-track-price,
+    .admin-album-price {
       margin: 0;
       color: #fff;
       font-weight: 700;
       font-size: 1.05rem;
     }
 
-    .admin-track-code {
+    .admin-track-code,
+    .admin-album-type {
       margin: 7px 0 0;
       color: rgba(255,255,255,.48);
       font-size: .72rem;
@@ -478,16 +467,19 @@ function ensureTracksSection() {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
-      .admin-track-card {
+      .admin-track-card,
+      .admin-album-card {
         grid-template-columns: 64px 1fr;
       }
 
-      .admin-track-cover {
+      .admin-track-cover,
+      .admin-album-cover {
         width: 64px;
         height: 64px;
       }
 
-      .admin-track-side {
+      .admin-track-side,
+      .admin-album-side {
         grid-column: 1 / -1;
         text-align: left;
       }
@@ -501,7 +493,83 @@ function ensureTracksSection() {
       }
     }
   `;
+
   document.head.appendChild(style);
+}
+
+function ensureTracksSection() {
+  ensureAdminStyles();
+
+  let section = document.getElementById('tracksSection');
+
+  if (section) {
+    return section;
+  }
+
+  const main = document.querySelector('main') || document.body;
+
+  section = document.createElement('section');
+  section.id = 'tracksSection';
+  section.className = 'admin-tracks-section';
+  section.innerHTML = `
+    <div class="admin-section-header">
+      <div>
+        <p class="admin-eyebrow">Catalog</p>
+        <h2>Tracks</h2>
+        <p class="admin-muted">Live catalog data from Supabase.</p>
+      </div>
+
+      <div class="admin-header-actions">
+        <button class="admin-secondary-btn admin-create-btn" type="button" id="newTrackBtn">New Track</button>
+        <button class="admin-secondary-btn" type="button" id="refreshTracksBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="admin-stats" id="tracksStats"></div>
+    <div class="admin-tracks-list" id="tracksList">
+      <p class="admin-muted">Loading tracks...</p>
+    </div>
+  `;
+
+  main.appendChild(section);
+
+  return section;
+}
+
+function ensureAlbumsSection() {
+  ensureAdminStyles();
+
+  let section = document.getElementById('albumsSection');
+
+  if (section) {
+    return section;
+  }
+
+  const main = document.querySelector('main') || document.body;
+
+  section = document.createElement('section');
+  section.id = 'albumsSection';
+  section.className = 'admin-albums-section';
+  section.innerHTML = `
+    <div class="admin-section-header">
+      <div>
+        <p class="admin-eyebrow">Release Groups</p>
+        <h2>Albums & EPs</h2>
+        <p class="admin-muted">Grouped releases that can be sold as complete products.</p>
+      </div>
+
+      <div class="admin-header-actions">
+        <button class="admin-secondary-btn admin-create-btn" type="button" id="newAlbumBtn">New Album / EP</button>
+        <button class="admin-secondary-btn" type="button" id="refreshAlbumsBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="admin-albums-list" id="albumsList">
+      <p class="admin-muted">Loading albums...</p>
+    </div>
+  `;
+
+  main.appendChild(section);
 
   return section;
 }
@@ -587,6 +655,59 @@ function renderTracks(tracks) {
     button.addEventListener('click', function() {
       const trackId = button.getAttribute('data-track-id');
       openTrackModal(trackId);
+    });
+  });
+}
+
+function renderAlbums(albums) {
+  const listEl = document.getElementById('albumsList');
+
+  if (!listEl) return;
+
+  if (!albums.length) {
+    listEl.innerHTML = '<p class="admin-muted">No albums or EPs found yet.</p>';
+    return;
+  }
+
+  listEl.innerHTML = albums.map(function(album) {
+    const meta = [
+      releaseTypeLabel(album.releaseType),
+      album.releaseYear || '',
+      album.status ? statusLabel(album.status) : '',
+      album.stripePriceId ? 'Stripe linked' : 'No Stripe'
+    ].filter(Boolean).join(' · ');
+
+    const tags = [
+      `<span class="admin-tag ${escapeHtml(album.status || '')}">${escapeHtml(statusLabel(album.status))}</span>`,
+      `<span class="admin-tag">${escapeHtml(releaseTypeLabel(album.releaseType))}</span>`,
+      album.isFeatured ? '<span class="admin-tag">Featured</span>' : '',
+      album.isLatestRelease ? '<span class="admin-tag">Latest release</span>' : '',
+      album.stripePriceId ? '<span class="admin-tag">Stripe linked</span>' : '<span class="admin-tag hidden">No Stripe</span>'
+    ].filter(Boolean).join('');
+
+    return `
+      <article class="admin-album-card">
+        <img class="admin-album-cover" src="${escapeHtml(album.coverUrl || '')}" alt="${escapeHtml(album.displayTitle || album.title || 'Album cover')}">
+        <div>
+          <h3 class="admin-album-title">${escapeHtml(album.displayTitle || album.title)}</h3>
+          <p class="admin-album-meta">${escapeHtml(meta || 'No metadata')}</p>
+          <div class="admin-track-tags">${tags}</div>
+        </div>
+        <div class="admin-album-side">
+          <p class="admin-album-price">${escapeHtml(money(album.priceMxn))}</p>
+          <p class="admin-album-type">${escapeHtml(releaseTypeLabel(album.releaseType))}</p>
+          <div class="admin-track-actions">
+            <button class="admin-mini-btn edit-album-btn" type="button" data-album-id="${escapeHtml(album.id)}">Edit</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  document.querySelectorAll('.edit-album-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+      const albumId = button.getAttribute('data-album-id');
+      openAlbumModal(albumId);
     });
   });
 }
@@ -678,6 +799,7 @@ function closeModal() {
   trackModalTitle.textContent = 'Loading track...';
   trackModalBody.innerHTML = '<p>Loading...</p>';
   activeTrackForSave = null;
+  activeAlbumForSave = null;
   setSaveStatus('', '');
   resetSaveButton();
 }
@@ -717,6 +839,7 @@ function openNewTrackModal() {
   setLastActivity();
 
   activeTrackForSave = null;
+  activeAlbumForSave = null;
   setSaveStatus('', '');
 
   trackModalTitle.textContent = 'New Track';
@@ -771,6 +894,163 @@ function openNewTrackModal() {
   openModal();
 }
 
+function openNewAlbumModal() {
+  setLastActivity();
+
+  activeTrackForSave = null;
+  activeAlbumForSave = null;
+  setSaveStatus('', '');
+
+  trackModalTitle.textContent = 'New Album / EP';
+
+  saveTrackModalFooter.disabled = false;
+  saveTrackModalFooter.textContent = 'Create Album / EP';
+  saveTrackModalFooter.dataset.mode = 'create-album';
+
+  trackModalBody.innerHTML = `
+    <div class="new-track-grid">
+      <div class="new-track-note">
+        This will create a grouped release in Supabase and automatically create a one-time MXN Product + Price in Stripe.
+      </div>
+
+      ${newTrackField('Title *', 'albumTitleInput', 'text', '', false)}
+      ${newTrackField('Artist *', 'albumArtistInput', 'text', 'AMNEUZ', false)}
+      ${newTrackField('Collaborators', 'albumCollaboratorsInput', 'text', '', false)}
+
+      ${newTrackSelect('Release Type *', 'albumReleaseTypeInput', 'album', [
+        { value: 'album', label: 'Album' },
+        { value: 'ep', label: 'EP' }
+      ], false)}
+
+      ${newTrackSelect('Status *', 'albumStatusInput', 'hidden', [
+        { value: 'hidden', label: 'Hidden' },
+        { value: 'upcoming', label: 'Upcoming' },
+        { value: 'visible', label: 'Visible' }
+      ], false)}
+
+      ${newTrackField('Price MXN *', 'albumPriceInput', 'number', '399', false)}
+      ${newTrackField('Release Year', 'albumReleaseYearInput', 'number', new Date().getFullYear(), false)}
+      ${newTrackField('Release Date', 'albumReleaseDateInput', 'date', '', false)}
+      ${newTrackField('Sort Order', 'albumSortOrderInput', 'number', '', false)}
+
+      <div class="detail-field full">
+        <p class="detail-label">Display Flags</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          ${editableCheckbox('Featured', 'albumFeaturedInput', false)}
+          ${editableCheckbox('Latest Release', 'albumLatestReleaseInput', false)}
+        </div>
+      </div>
+
+      ${newTrackTextarea('Short Description', 'albumShortDescriptionInput', 'Official release by AMNEUZ.', true)}
+      ${newTrackTextarea('Long Description', 'albumLongDescriptionInput', '', true)}
+    </div>
+  `;
+
+  openModal();
+}
+
+async function openAlbumModal(albumId) {
+  if (!albumId || !currentSession) return;
+
+  setLastActivity();
+
+  trackModalTitle.textContent = 'Loading album...';
+  trackModalBody.innerHTML = '<p>Loading...</p>';
+  activeTrackForSave = null;
+  activeAlbumForSave = null;
+  setSaveStatus('', '');
+  resetSaveButton();
+  openModal();
+
+  try {
+    const response = await fetch('/api/admin-tracks?resource=albums', {
+      headers: {
+        Authorization: `Bearer ${currentSession.access_token}`
+      }
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to load albums');
+    }
+
+    const albums = Array.isArray(data.albums) ? data.albums : [];
+    const album = albums.find(function(item) {
+      return item.id === albumId;
+    });
+
+    if (!album) {
+      throw new Error('Album not found');
+    }
+
+    activeAlbumForSave = album;
+
+    trackModalTitle.textContent = album.displayTitle || album.title || 'Album details';
+
+    trackModalBody.innerHTML = `
+      <div class="track-detail-grid">
+        <div>
+          <img class="track-detail-cover" src="${escapeHtml(album.coverUrl || '')}" alt="${escapeHtml(album.displayTitle || album.title || 'Album cover')}">
+          <p class="admin-muted" style="margin-top:12px;">Album cover upload will be connected in the next step.</p>
+        </div>
+
+        <div class="track-detail-fields">
+          ${editableInput('Title', 'albumTitleInput', album.title, 'text')}
+          ${editableInput('Artist', 'albumArtistInput', album.artist, 'text')}
+          ${editableInput('Collaborators', 'albumCollaboratorsInput', album.collaborators, 'text')}
+
+          ${editableSelect('Release Type', 'albumReleaseTypeInput', album.releaseType, [
+            { value: 'album', label: 'Album' },
+            { value: 'ep', label: 'EP' }
+          ])}
+
+          ${editableSelect('Status', 'albumStatusInput', album.status, [
+            { value: 'visible', label: 'Visible' },
+            { value: 'hidden', label: 'Hidden' },
+            { value: 'upcoming', label: 'Upcoming' }
+          ])}
+
+          ${editableInput('Price MXN', 'albumPriceInput', album.priceMxn, 'number')}
+          ${editableInput('Release Year', 'albumReleaseYearInput', album.releaseYear, 'number')}
+          ${editableInput('Release Date', 'albumReleaseDateInput', album.releaseDate, 'date')}
+          ${editableInput('Sort Order', 'albumSortOrderInput', album.sortOrder, 'number')}
+
+          <div class="detail-field full">
+            <p class="detail-label">Display Flags</p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+              ${editableCheckbox('Featured', 'albumFeaturedInput', album.isFeatured)}
+              ${editableCheckbox('Latest Release', 'albumLatestReleaseInput', album.isLatestRelease)}
+            </div>
+          </div>
+
+          ${detailField('Stripe Product ID', album.stripeProductId, true)}
+          ${detailField('Stripe Price ID', album.stripePriceId, true)}
+          ${detailField('Cover URL', album.rawCoverUrl || album.coverUrl, true)}
+
+          <div class="detail-field full">
+            <p class="detail-label">Short Description</p>
+            <textarea id="albumShortDescriptionInput" class="admin-edit-textarea">${escapeHtml(album.descriptionShort || '')}</textarea>
+          </div>
+
+          <div class="detail-field full">
+            <p class="detail-label">Long Description</p>
+            <textarea id="albumLongDescriptionInput" class="admin-edit-textarea">${escapeHtml(album.descriptionLong || '')}</textarea>
+          </div>
+        </div>
+      </div>
+    `;
+
+    bindEditableChangeListeners();
+  } catch (err) {
+    trackModalTitle.textContent = 'Unable to load album';
+    trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load album')}</p>`;
+    activeAlbumForSave = null;
+  }
+}
+
 async function openTrackModal(trackId) {
   if (!trackId || !currentSession) return;
 
@@ -779,6 +1059,7 @@ async function openTrackModal(trackId) {
   trackModalTitle.textContent = 'Loading track...';
   trackModalBody.innerHTML = '<p>Loading...</p>';
   activeTrackForSave = null;
+  activeAlbumForSave = null;
   setSaveStatus('', '');
   resetSaveButton();
   openModal();
@@ -848,6 +1129,7 @@ async function openTrackModal(trackId) {
             </div>
           </div>
 
+          ${detailField('Stripe Product ID', track.stripeProductId, true)}
           ${detailField('Stripe Price ID', track.stripePriceId, true)}
           ${detailField('Master Path', track.masterPath, true)}
           ${detailField('Filename', track.filename, true)}
@@ -980,6 +1262,143 @@ async function createNewTrack() {
   }
 }
 
+function albumPayloadFromForm(existingAlbum) {
+  return {
+    slug: existingAlbum && existingAlbum.slug ? existingAlbum.slug : '',
+    title: valueOf('albumTitleInput', existingAlbum ? existingAlbum.title : ''),
+    artist: valueOf('albumArtistInput', existingAlbum ? existingAlbum.artist : 'AMNEUZ'),
+    collaborators: valueOf('albumCollaboratorsInput', existingAlbum ? existingAlbum.collaborators : ''),
+    releaseType: valueOf('albumReleaseTypeInput', existingAlbum ? existingAlbum.releaseType : 'album'),
+    status: valueOf('albumStatusInput', existingAlbum ? existingAlbum.status : 'hidden'),
+    priceMxn: valueOf('albumPriceInput', existingAlbum ? existingAlbum.priceMxn : ''),
+    releaseYear: valueOf('albumReleaseYearInput', existingAlbum ? existingAlbum.releaseYear : ''),
+    releaseDate: valueOf('albumReleaseDateInput', existingAlbum ? existingAlbum.releaseDate : ''),
+    sortOrder: valueOf('albumSortOrderInput', existingAlbum ? existingAlbum.sortOrder : ''),
+    isFeatured: checkedOf('albumFeaturedInput', existingAlbum ? existingAlbum.isFeatured : false),
+    isLatestRelease: checkedOf('albumLatestReleaseInput', existingAlbum ? existingAlbum.isLatestRelease : false),
+    descriptionShort: valueOf('albumShortDescriptionInput', existingAlbum ? existingAlbum.descriptionShort : ''),
+    descriptionLong: valueOf('albumLongDescriptionInput', existingAlbum ? existingAlbum.descriptionLong : '')
+  };
+}
+
+async function createNewAlbum() {
+  if (!currentSession) {
+    setSaveStatus('Session not found.', 'error');
+    return;
+  }
+
+  const payload = albumPayloadFromForm(null);
+
+  if (!payload.title) {
+    setSaveStatus('Title is required.', 'error');
+    return;
+  }
+
+  if (!payload.priceMxn || Number(payload.priceMxn) <= 0) {
+    setSaveStatus('Price MXN is required.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Creating album and Stripe product...', '');
+
+  saveTrackModalFooter.disabled = true;
+  saveTrackModalFooter.textContent = 'Creating...';
+
+  try {
+    const response = await fetch('/api/admin-tracks?resource=albums', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to create album');
+    }
+
+    setSaveStatus('Album created. Stripe product and price linked.', 'ok');
+
+    await loadAdminAlbums();
+
+    if (data.album && data.album.id) {
+      setTimeout(function() {
+        openAlbumModal(data.album.id);
+      }, 500);
+    } else {
+      setFooterButtonToClose();
+    }
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to create album.', 'error');
+    saveTrackModalFooter.disabled = false;
+    saveTrackModalFooter.textContent = 'Create Album / EP';
+    saveTrackModalFooter.dataset.mode = 'create-album';
+  }
+}
+
+async function saveAlbumChanges() {
+  const album = activeAlbumForSave;
+
+  if (!album || !album.id || !currentSession) {
+    setSaveStatus('No album loaded.', 'error');
+    return;
+  }
+
+  const payload = albumPayloadFromForm(album);
+
+  if (!payload.title) {
+    setSaveStatus('Title is required.', 'error');
+    return;
+  }
+
+  if (!payload.priceMxn || Number(payload.priceMxn) <= 0) {
+    setSaveStatus('Price MXN is required.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Saving album...', '');
+
+  saveTrackModalFooter.disabled = true;
+  saveTrackModalFooter.textContent = 'Saving...';
+
+  try {
+    const response = await fetch(`/api/admin-tracks?resource=albums&id=${encodeURIComponent(album.id)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to save album');
+    }
+
+    activeAlbumForSave = data.album;
+
+    setSaveStatus(data.stripePriceChanged ? 'Saved. Stripe price updated.' : 'Saved.', 'ok');
+    trackModalTitle.textContent = data.album.displayTitle || data.album.title || 'Album details';
+    setFooterButtonToClose();
+
+    await loadAdminAlbums();
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to save album.', 'error');
+    resetSaveButton();
+  }
+}
+
 async function saveTrackSafeChanges() {
   if (saveTrackModalFooter.dataset.mode === 'close') {
     closeModal();
@@ -988,6 +1407,16 @@ async function saveTrackSafeChanges() {
 
   if (saveTrackModalFooter.dataset.mode === 'create') {
     await createNewTrack();
+    return;
+  }
+
+  if (saveTrackModalFooter.dataset.mode === 'create-album') {
+    await createNewAlbum();
+    return;
+  }
+
+  if (activeAlbumForSave && activeAlbumForSave.id) {
+    await saveAlbumChanges();
     return;
   }
 
@@ -1050,7 +1479,7 @@ async function saveTrackSafeChanges() {
 
     activeTrackForSave = data.track;
 
-    setSaveStatus('Saved.', 'ok');
+    setSaveStatus(data.stripePriceChanged ? 'Saved. Stripe price updated.' : 'Saved.', 'ok');
     trackModalTitle.textContent = data.track.displayTitle || data.track.title || 'Track details';
     setFooterButtonToClose();
 
@@ -1505,6 +1934,40 @@ async function loadAdminTracks() {
   }
 }
 
+async function loadAdminAlbums() {
+  ensureAlbumsSection();
+
+  const listEl = document.getElementById('albumsList');
+
+  if (listEl) {
+    listEl.innerHTML = '<p class="admin-muted">Loading albums...</p>';
+  }
+
+  try {
+    const response = await fetch('/api/admin-tracks?resource=albums', {
+      headers: {
+        Authorization: `Bearer ${currentSession.access_token}`
+      }
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to load albums');
+    }
+
+    const albums = Array.isArray(data.albums) ? data.albums : [];
+
+    renderAlbums(albums);
+  } catch (err) {
+    if (listEl) {
+      listEl.innerHTML = `<p class="admin-muted">Unable to load albums. ${escapeHtml(err.message || '')}</p>`;
+    }
+  }
+}
+
 async function verifyAdmin() {
   const { data } = await supabaseClient.auth.getSession();
 
@@ -1547,6 +2010,7 @@ async function verifyAdmin() {
   scheduleSessionCheck();
 
   await loadAdminTracks();
+  await loadAdminAlbums();
 
   const refreshTracksBtn = document.getElementById('refreshTracksBtn');
 
@@ -1562,6 +2026,23 @@ async function verifyAdmin() {
   if (newTrackBtn) {
     newTrackBtn.addEventListener('click', function() {
       openNewTrackModal();
+    });
+  }
+
+  const refreshAlbumsBtn = document.getElementById('refreshAlbumsBtn');
+
+  if (refreshAlbumsBtn) {
+    refreshAlbumsBtn.addEventListener('click', function() {
+      setLastActivity();
+      loadAdminAlbums();
+    });
+  }
+
+  const newAlbumBtn = document.getElementById('newAlbumBtn');
+
+  if (newAlbumBtn) {
+    newAlbumBtn.addEventListener('click', function() {
+      openNewAlbumModal();
     });
   }
 }
