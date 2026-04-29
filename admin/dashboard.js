@@ -141,7 +141,11 @@ function ensureTracksSection() {
         <h2>Tracks</h2>
         <p class="admin-muted">Live catalog data from Supabase.</p>
       </div>
-      <button class="admin-secondary-btn" type="button" id="refreshTracksBtn">Refresh</button>
+
+      <div class="admin-header-actions">
+        <button class="admin-secondary-btn admin-create-btn" type="button" id="newTrackBtn">New Track</button>
+        <button class="admin-secondary-btn" type="button" id="refreshTracksBtn">Refresh</button>
+      </div>
     </div>
 
     <div class="admin-stats" id="tracksStats"></div>
@@ -190,6 +194,14 @@ function ensureTracksSection() {
       margin: 8px 0 0;
     }
 
+    .admin-header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .admin-secondary-btn {
       border: 1px solid rgba(255,255,255,.22);
       border-radius: 999px;
@@ -205,6 +217,16 @@ function ensureTracksSection() {
 
     .admin-secondary-btn:hover {
       background: rgba(255,255,255,.1);
+    }
+
+    .admin-create-btn {
+      border-color: rgba(103,174,135,.42);
+      background: rgba(61,132,92,.16);
+      color: rgba(208,255,224,.96);
+    }
+
+    .admin-create-btn:hover {
+      background: rgba(61,132,92,.28);
     }
 
     .admin-stats {
@@ -393,9 +415,63 @@ function ensureTracksSection() {
       background: rgba(255,255,255,.16);
     }
 
+    .new-track-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .new-track-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .new-track-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .new-track-field label {
+      color: rgba(255,255,255,.58);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .new-track-field input,
+    .new-track-field select,
+    .new-track-field textarea {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 14px;
+      background: rgba(0,0,0,.28);
+      color: #f4f4f4;
+      padding: 12px 13px 10px;
+      outline: none;
+    }
+
+    .new-track-field textarea {
+      min-height: 94px;
+      resize: vertical;
+    }
+
+    .new-track-note {
+      grid-column: 1 / -1;
+      border: 1px solid rgba(92,121,255,.24);
+      border-radius: 18px;
+      background: rgba(49,69,180,.08);
+      color: rgba(226,232,255,.8);
+      padding: 14px;
+      line-height: 1.45;
+      font-size: .9rem;
+    }
+
     @media (max-width: 760px) {
       .admin-section-header {
         flex-direction: column;
+      }
+
+      .admin-header-actions {
+        justify-content: flex-start;
       }
 
       .admin-stats {
@@ -418,6 +494,10 @@ function ensureTracksSection() {
 
       .admin-track-actions {
         justify-content: flex-start;
+      }
+
+      .new-track-grid {
+        grid-template-columns: 1fr;
       }
     }
   `;
@@ -556,6 +636,37 @@ function editableCheckbox(label, id, checked) {
   `;
 }
 
+function newTrackField(label, id, type, value, full) {
+  return `
+    <div class="new-track-field ${full ? 'full' : ''}">
+      <label for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+      <input id="${escapeHtml(id)}" type="${escapeHtml(type || 'text')}" value="${escapeHtml(value || '')}">
+    </div>
+  `;
+}
+
+function newTrackSelect(label, id, value, options, full) {
+  return `
+    <div class="new-track-field ${full ? 'full' : ''}">
+      <label for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+      <select id="${escapeHtml(id)}">
+        ${options.map(function(option) {
+          return `<option value="${escapeHtml(option.value)}" ${String(value || '') === String(option.value) ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
+        }).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function newTrackTextarea(label, id, value, full) {
+  return `
+    <div class="new-track-field ${full ? 'full' : ''}">
+      <label for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+      <textarea id="${escapeHtml(id)}">${escapeHtml(value || '')}</textarea>
+    </div>
+  `;
+}
+
 function openModal() {
   trackModal.classList.add('show');
   trackModal.setAttribute('aria-hidden', 'false');
@@ -600,6 +711,64 @@ function bindEditableChangeListeners() {
     field.addEventListener('input', markUnsavedChanges);
     field.addEventListener('change', markUnsavedChanges);
   });
+}
+
+function openNewTrackModal() {
+  setLastActivity();
+
+  activeTrackForSave = null;
+  setSaveStatus('', '');
+
+  trackModalTitle.textContent = 'New Track';
+
+  saveTrackModalFooter.disabled = false;
+  saveTrackModalFooter.textContent = 'Create Track';
+  saveTrackModalFooter.dataset.mode = 'create';
+
+  trackModalBody.innerHTML = `
+    <div class="new-track-grid">
+      <div class="new-track-note">
+        This will create a new hidden track in Supabase and automatically create a one-time MXN Product + Price in Stripe. After creating it, upload cover, preview and master from the track editor.
+      </div>
+
+      ${newTrackField('Title *', 'newTitleInput', 'text', '', false)}
+      ${newTrackField('Artist *', 'newArtistInput', 'text', 'AMNEUZ', false)}
+      ${newTrackField('Collaborators', 'newCollaboratorsInput', 'text', '', false)}
+
+      ${newTrackSelect('Category *', 'newCategoryInput', 'remixes', [
+        { value: 'remixes', label: 'Remixes' },
+        { value: 'originals', label: 'Originals' },
+        { value: 'album', label: 'Album' }
+      ], false)}
+
+      ${newTrackSelect('Status *', 'newStatusInput', 'hidden', [
+        { value: 'hidden', label: 'Hidden' },
+        { value: 'upcoming', label: 'Upcoming' },
+        { value: 'visible', label: 'Visible' }
+      ], false)}
+
+      ${newTrackField('Price MXN *', 'newPriceInput', 'number', '99', false)}
+      ${newTrackField('Subgenre', 'newSubgenreInput', 'text', '', false)}
+      ${newTrackField('Key', 'newKeyInput', 'text', '', false)}
+      ${newTrackField('BPM', 'newBpmInput', 'number', '', false)}
+      ${newTrackField('Duration Label', 'newDurationInput', 'text', '', false)}
+      ${newTrackField('Release Year', 'newReleaseYearInput', 'number', new Date().getFullYear(), false)}
+      ${newTrackField('Release Date', 'newReleaseDateInput', 'date', '', false)}
+      ${newTrackField('Sort Order', 'newSortOrderInput', 'number', '', false)}
+
+      ${newTrackField('SoundCloud URL', 'newSoundcloudInput', 'url', '', true)}
+      ${newTrackField('Spotify URL', 'newSpotifyInput', 'url', '', true)}
+      ${newTrackField('Apple Music URL', 'newAppleMusicInput', 'url', '', true)}
+      ${newTrackField('Tidal URL', 'newTidalInput', 'url', '', true)}
+      ${newTrackField('YouTube URL', 'newYoutubeInput', 'url', '', true)}
+      ${newTrackField('Beatport URL', 'newBeatportInput', 'url', '', true)}
+
+      ${newTrackTextarea('Short Description', 'newShortDescriptionInput', 'Official WAV extended mix, direct from AMNEUZ.', true)}
+      ${newTrackTextarea('Long Description', 'newLongDescriptionInput', '', true)}
+    </div>
+  `;
+
+  openModal();
 }
 
 async function openTrackModal(trackId) {
@@ -723,9 +892,102 @@ function checkedOf(id, fallback) {
   return el ? el.checked : fallback;
 }
 
+function newValueOf(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+async function createNewTrack() {
+  if (!currentSession) {
+    setSaveStatus('Session not found.', 'error');
+    return;
+  }
+
+  const payload = {
+    title: newValueOf('newTitleInput'),
+    artist: newValueOf('newArtistInput') || 'AMNEUZ',
+    collaborators: newValueOf('newCollaboratorsInput'),
+    category: newValueOf('newCategoryInput') || 'remixes',
+    status: newValueOf('newStatusInput') || 'hidden',
+    priceMxn: newValueOf('newPriceInput'),
+    subgenre: newValueOf('newSubgenreInput'),
+    key: newValueOf('newKeyInput'),
+    bpm: newValueOf('newBpmInput'),
+    durationLabel: newValueOf('newDurationInput'),
+    releaseYear: newValueOf('newReleaseYearInput'),
+    releaseDate: newValueOf('newReleaseDateInput'),
+    sortOrder: newValueOf('newSortOrderInput'),
+    soundcloudUrl: newValueOf('newSoundcloudInput'),
+    spotifyUrl: newValueOf('newSpotifyInput'),
+    appleMusicUrl: newValueOf('newAppleMusicInput'),
+    tidalUrl: newValueOf('newTidalInput'),
+    youtubeUrl: newValueOf('newYoutubeInput'),
+    beatportUrl: newValueOf('newBeatportInput'),
+    descriptionShort: newValueOf('newShortDescriptionInput'),
+    descriptionLong: newValueOf('newLongDescriptionInput')
+  };
+
+  if (!payload.title) {
+    setSaveStatus('Title is required.', 'error');
+    return;
+  }
+
+  if (!payload.priceMxn || Number(payload.priceMxn) <= 0) {
+    setSaveStatus('Price MXN is required.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Creating track and Stripe product...', '');
+
+  saveTrackModalFooter.disabled = true;
+  saveTrackModalFooter.textContent = 'Creating...';
+
+  try {
+    const response = await fetch('/api/admin-tracks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to create track');
+    }
+
+    setSaveStatus('Track created. Stripe product and price linked.', 'ok');
+
+    await loadAdminTracks();
+
+    if (data.track && data.track.id) {
+      setTimeout(function() {
+        openTrackModal(data.track.id);
+      }, 500);
+    } else {
+      setFooterButtonToClose();
+    }
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to create track.', 'error');
+    saveTrackModalFooter.disabled = false;
+    saveTrackModalFooter.textContent = 'Create Track';
+    saveTrackModalFooter.dataset.mode = 'create';
+  }
+}
+
 async function saveTrackSafeChanges() {
   if (saveTrackModalFooter.dataset.mode === 'close') {
     closeModal();
+    return;
+  }
+
+  if (saveTrackModalFooter.dataset.mode === 'create') {
+    await createNewTrack();
     return;
   }
 
@@ -1292,6 +1554,14 @@ async function verifyAdmin() {
     refreshTracksBtn.addEventListener('click', function() {
       setLastActivity();
       loadAdminTracks();
+    });
+  }
+
+  const newTrackBtn = document.getElementById('newTrackBtn');
+
+  if (newTrackBtn) {
+    newTrackBtn.addEventListener('click', function() {
+      openNewTrackModal();
     });
   }
 }
