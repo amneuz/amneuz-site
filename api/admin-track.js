@@ -1,7 +1,18 @@
-const { requireAdmin, supabaseAdmin } = require('./_adminAuth');
+const { requireAdmin, supabaseAdmin, getRequestIp } = require('./_adminAuth');
 
 const ALLOWED_STATUS = ['visible', 'hidden', 'upcoming'];
 const ALLOWED_CATEGORY = ['remixes', 'originals', 'album'];
+const MASTER_BUCKET = 'masters';
+
+const ALLOWED_MASTER_MIME_TYPES = {
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/wave': 'wav',
+  'audio/flac': 'flac',
+  'audio/aiff': 'aiff',
+  'audio/x-aiff': 'aiff',
+  'application/octet-stream': 'wav'
+};
 
 function publicAssetUrl(value) {
   const path = String(value || '').trim();
@@ -40,6 +51,24 @@ function slugify(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function safeName(value) {
+  return String(value || 'track')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'track';
+}
+
+function safeFilename(value) {
+  const cleaned = String(value || '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .trim();
+
+  return cleaned || 'AMNEUZ Master.wav';
 }
 
 function mapTrack(track) {
@@ -252,6 +281,9 @@ async function writeAudit(admin, req, action, resourceId, metadata) {
         action,
         endpoint: '/api/admin-track',
         http_method: req.method,
+        ip_address: getRequestIp ? getRequestIp(req) : null,
+        user_agent: req.headers['user-agent'] || null,
+        status: 'success',
         resource_type: 'track',
         resource_id: resourceId,
         metadata: metadata || {}
@@ -261,6 +293,286 @@ async function writeAudit(admin, req, action, resourceId, metadata) {
   }
 }
 
+function validateMasterPayload(body) {
+  const fileName = safeFilename(body.fileName);
+  const mimeType = String(body.mimeType || '').trim().toLowerCase();
+  const fileSize = Number(body.fileSize || 0);
+
+  if (!ALLOWED_MASTER_MIME_TYPES[mimeType]) {
+    throw new Error('Master must be WAV, FLAC, or AIFF');
+  }
+
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    throw new Error('Invalid file size');
+  }
+
+  return {
+    fileName,
+    mimeType,
+    fileSize,
+    extension: ALLOWED_MASTER_MIME_TYPES[mimeType]
+  };
+}
+
+async function createMasterUpload(admin, req, res, id) {
+  let body;
+
+  try {
+    body = parseBody(req);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid request payload' });
+  }
+
+  let validated;
+
+  try {
+    validated = validateMasterPayload(body || {});
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Invalid master file' });
+  }
+
+  const track = await getTrackById(id);
+
+  if (!track) {
+    return res.status(404).json({ error: 'Track not found' });
+  }
+
+  const baseName = safeName(track.catalog_code || track.slug || track.title || validated.fileName);
+  const uploadPath = `${baseName}/master-${Date.now()}.${validated.extension}`;
+
+  const { data, error } = await supabaseAdmin
+    .storage
+    .from(MASTER_BUCKET)
+    .createSignedUploadUrl(uploadPath);
+
+  if (error || !data) {
+    console.error('Create signed master upload URL failed:', error && (error.message || error));
+    return res.status(500).json({ error: 'Unable to create master upload URL' });
+  }
+
+  await writeAudit(admin, req, 'admin.track.master_upload_url_created', id, {
+    bucket: MASTER_BUCKET,
+    catalog_code: track.catalog_code,
+    title: track.title,
+    upload_path: uploadPath,
+    file_name: validated.fileName,
+    file_size: validated.fileSize,
+    mime_type: validated.mimeType
+  });
+
+  return res.status(200).json({
+    ok: true,
+    bucket: MASTER_BUCKET,
+    path: uploadPath,
+    token: data.token,
+    signedUrl: data.signedUrl,
+    fileName: validated.fileName
+  });
+}
+
+async function verifyMasterObjectExists(path) {
+  const cleanPath = String(path || '').trim();
+
+  if (!cleanPath || cleanPath.startsWith('/') || cleanPath.indexOf('..') > -1) {
+    return false;
+  }
+
+  const parts = cleanPath.split('/');
+  const fileName = parts.pop();
+  const folder = parts.join('/');
+
+  const { data, error } = await supabaseAdmin
+    .storage
+    .from(MASTER_BUCKET)
+    .list(folder, {
+      search: fileName
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) && data.some(function(item) {
+    return item.name === fileName;
+  });
+}
+
+async function finalizeMasterUpload(admin, req, res, id) {
+  let body;
+
+  try {
+    body = parseBody(req);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid request payload' });
+  }
+
+  const masterPath = String(body.path || '').trim();
+  const filename = safeFilename(body.fileName);
+
+  if (!masterPath || masterPath.length > 500 || masterPath.startsWith('/') || masterPath.indexOf('..') > -1) {
+    return res.status(400).json({ error: 'Invalid master path' });
+  }
+
+  const track = await getTrackById(id);
+
+  if (!track) {
+    return res.status(404).json({ error: 'Track not found' });
+  }
+
+  const exists = await verifyMasterObjectExists(masterPath);
+
+  if (!exists) {
+    return res.status(400).json({ error: 'Uploaded master file was not found' });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('tracks')
+    .update({
+      master_path: masterPath,
+      filename,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select(`
+      id,
+      legacy_id,
+      catalog_code,
+      slug,
+      title,
+      artist,
+      collaborators,
+      category,
+      subgenre,
+      track_key,
+      bpm,
+      duration_seconds,
+      duration_label,
+      release_year,
+      price_mxn,
+      status,
+      is_featured,
+      is_latest_release,
+      sort_order,
+      cover_url,
+      preview_url,
+      master_path,
+      filename,
+      stripe_price_id,
+      soundcloud_url,
+      spotify_url,
+      apple_music_url,
+      tidal_url,
+      youtube_url,
+      beatport_url,
+      description_short,
+      description_long,
+      created_at,
+      updated_at
+    `)
+    .single();
+
+  if (error || !data) {
+    console.error('Master path update failed:', error && (error.message || error));
+    return res.status(500).json({ error: 'Unable to update track master' });
+  }
+
+  await writeAudit(admin, req, 'admin.track.master_uploaded', id, {
+    bucket: MASTER_BUCKET,
+    catalog_code: data.catalog_code,
+    title: data.title,
+    master_path: data.master_path,
+    filename: data.filename
+  });
+
+  return res.status(200).json({
+    ok: true,
+    masterPath: data.master_path,
+    filename: data.filename,
+    track: mapTrack(data)
+  });
+}
+
+async function updateTrack(admin, req, res, id) {
+  const existingTrack = await getTrackById(id);
+
+  if (!existingTrack) {
+    return res.status(404).json({ error: 'Track not found' });
+  }
+
+  let body;
+
+  try {
+    body = parseBody(req);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid request payload' });
+  }
+
+  let updatePayload;
+
+  try {
+    updatePayload = buildUpdatePayload(body || {});
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Invalid track data' });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('tracks')
+    .update(updatePayload)
+    .eq('id', id)
+    .select(`
+      id,
+      legacy_id,
+      catalog_code,
+      slug,
+      title,
+      artist,
+      collaborators,
+      category,
+      subgenre,
+      track_key,
+      bpm,
+      duration_seconds,
+      duration_label,
+      release_year,
+      price_mxn,
+      status,
+      is_featured,
+      is_latest_release,
+      sort_order,
+      cover_url,
+      preview_url,
+      master_path,
+      filename,
+      stripe_price_id,
+      soundcloud_url,
+      spotify_url,
+      apple_music_url,
+      tidal_url,
+      youtube_url,
+      beatport_url,
+      description_short,
+      description_long,
+      created_at,
+      updated_at
+    `)
+    .single();
+
+  if (error || !data) {
+    console.error('Admin track update failed:', error && (error.message || error));
+    return res.status(500).json({ error: 'Unable to update track' });
+  }
+
+  await writeAudit(admin, req, 'admin.track.updated', id, {
+    catalog_code: data.catalog_code,
+    title: data.title,
+    changed_fields: Object.keys(updatePayload)
+  });
+
+  return res.status(200).json({
+    track: mapTrack(data)
+  });
+}
+
 module.exports = async function handler(req, res) {
   const admin = await requireAdmin(req, res);
 
@@ -268,7 +580,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  if (req.method !== 'GET' && req.method !== 'PATCH') {
+  if (req.method !== 'GET' && req.method !== 'PATCH' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -291,84 +603,21 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const existingTrack = await getTrackById(id);
-
-    if (!existingTrack) {
-      return res.status(404).json({ error: 'Track not found' });
+    if (req.method === 'PATCH') {
+      return await updateTrack(admin, req, res, id);
     }
 
-    let body;
+    const action = typeof req.query.action === 'string' ? req.query.action.trim() : '';
 
-    try {
-      body = parseBody(req);
-    } catch (err) {
-      return res.status(400).json({ error: 'Invalid request payload' });
+    if (action === 'create-master-upload') {
+      return await createMasterUpload(admin, req, res, id);
     }
 
-    let updatePayload;
-
-    try {
-      updatePayload = buildUpdatePayload(body || {});
-    } catch (err) {
-      return res.status(400).json({ error: err.message || 'Invalid track data' });
+    if (action === 'finalize-master-upload') {
+      return await finalizeMasterUpload(admin, req, res, id);
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('tracks')
-      .update(updatePayload)
-      .eq('id', id)
-      .select(`
-        id,
-        legacy_id,
-        catalog_code,
-        slug,
-        title,
-        artist,
-        collaborators,
-        category,
-        subgenre,
-        track_key,
-        bpm,
-        duration_seconds,
-        duration_label,
-        release_year,
-        price_mxn,
-        status,
-        is_featured,
-        is_latest_release,
-        sort_order,
-        cover_url,
-        preview_url,
-        master_path,
-        filename,
-        stripe_price_id,
-        soundcloud_url,
-        spotify_url,
-        apple_music_url,
-        tidal_url,
-        youtube_url,
-        beatport_url,
-        description_short,
-        description_long,
-        created_at,
-        updated_at
-      `)
-      .single();
-
-    if (error || !data) {
-      console.error('Admin track update failed:', error && (error.message || error));
-      return res.status(500).json({ error: 'Unable to update track' });
-    }
-
-    await writeAudit(admin, req, 'admin.track.updated', id, {
-      catalog_code: data.catalog_code,
-      title: data.title,
-      changed_fields: Object.keys(updatePayload)
-    });
-
-    return res.status(200).json({
-      track: mapTrack(data)
-    });
+    return res.status(400).json({ error: 'Invalid admin track action' });
   } catch (err) {
     console.error('Admin track API failed:', err.message || err);
     return res.status(500).json({ error: 'Unable to process track' });
