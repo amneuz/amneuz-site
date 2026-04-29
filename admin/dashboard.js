@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://lydrhgqzqaxfaokvxqhs.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6Imx5ZHJoZ3F6cWF4ZmFva3Z4cWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUyNzcsImV4cCI6MjA5MjY3MTI3N30.Tjx1Oqke6FHvd2wKa-PehA_RVkHiY9r2LNeb1SlaC1I';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -354,6 +354,18 @@ function ensureTracksSection() {
       background: rgba(255,255,255,.1);
     }
 
+    .upload-cover-btn {
+      width: 100%;
+      margin-top: 12px;
+      border: 1px solid rgba(92,121,255,.34);
+      background: rgba(49,69,180,.12);
+      color: rgba(226,232,255,.94);
+    }
+
+    .upload-cover-btn:hover {
+      background: rgba(49,69,180,.22);
+    }
+
     @media (max-width: 760px) {
       .admin-section-header {
         flex-direction: column;
@@ -597,7 +609,10 @@ async function openTrackModal(trackId) {
     trackModalBody.innerHTML = `
       <div class="track-detail-grid">
         <div>
-          <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
+          <img id="trackModalCover" class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
+
+          <button id="uploadCoverBtn" class="upload-cover-btn" type="button">Upload Cover</button>
+          <input id="coverFileInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;">
         </div>
 
         <div class="track-detail-fields">
@@ -654,6 +669,7 @@ async function openTrackModal(trackId) {
     `;
 
     bindEditableChangeListeners();
+    bindCoverUpload();
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
@@ -744,6 +760,124 @@ async function saveTrackSafeChanges() {
   } catch (err) {
     setSaveStatus(err.message || 'Unable to save.', 'error');
     resetSaveButton();
+  }
+}
+
+function bindCoverUpload() {
+  const uploadCoverBtn = document.getElementById('uploadCoverBtn');
+  const coverFileInput = document.getElementById('coverFileInput');
+
+  if (!uploadCoverBtn || !coverFileInput) {
+    return;
+  }
+
+  uploadCoverBtn.addEventListener('click', function() {
+    coverFileInput.click();
+  });
+
+  coverFileInput.addEventListener('change', async function() {
+    const file = coverFileInput.files && coverFileInput.files[0];
+
+    if (!file) {
+      return;
+    }
+
+    await uploadCoverFile(file);
+    coverFileInput.value = '';
+  });
+}
+
+function fileToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+
+    reader.onload = function() {
+      const result = String(reader.result || '');
+      const base64 = result.split(',')[1] || '';
+
+      resolve(base64);
+    };
+
+    reader.onerror = function() {
+      reject(new Error('Unable to read file'));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadCoverFile(file) {
+  const track = activeTrackForSave;
+  const uploadCoverBtn = document.getElementById('uploadCoverBtn');
+
+  if (!track || !track.id || !currentSession) {
+    setSaveStatus('No track loaded.', 'error');
+    return;
+  }
+
+  if (!file.type || ['image/jpeg', 'image/png', 'image/webp'].indexOf(file.type) === -1) {
+    setSaveStatus('Cover must be JPG, PNG, or WEBP.', 'error');
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    setSaveStatus('Cover file is too large. Max 5MB.', 'error');
+    return;
+  }
+
+  setLastActivity();
+  setSaveStatus('Uploading cover...', '');
+
+  if (uploadCoverBtn) {
+    uploadCoverBtn.disabled = true;
+    uploadCoverBtn.textContent = 'Uploading...';
+  }
+
+  try {
+    const fileBase64 = await fileToBase64(file);
+
+    const response = await fetch('/api/admin-upload-cover', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({
+        trackId: track.id,
+        fileName: file.name,
+        mimeType: file.type,
+        fileBase64
+      })
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to upload cover');
+    }
+
+    const modalCover = document.getElementById('trackModalCover');
+
+    if (modalCover && data.coverUrl) {
+      modalCover.src = data.coverUrl;
+    }
+
+    activeTrackForSave.coverUrl = data.coverUrl;
+    activeTrackForSave.rawCoverUrl = data.coverUrl;
+
+    setSaveStatus('Cover uploaded.', 'ok');
+    setFooterButtonToClose();
+
+    await loadAdminTracks();
+  } catch (err) {
+    setSaveStatus(err.message || 'Unable to upload cover.', 'error');
+  } finally {
+    if (uploadCoverBtn) {
+      uploadCoverBtn.disabled = false;
+      uploadCoverBtn.textContent = 'Upload Cover';
+    }
   }
 }
 
