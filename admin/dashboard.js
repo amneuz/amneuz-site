@@ -480,6 +480,42 @@ function detailField(label, value, full) {
   `;
 }
 
+function editableInput(label, id, value, type, full) {
+  return `
+    <div class="detail-field ${full ? 'full' : ''}">
+      <p class="detail-label">${escapeHtml(label)}</p>
+      <input
+        id="${escapeHtml(id)}"
+        class="admin-edit-input"
+        type="${escapeHtml(type || 'text')}"
+        value="${escapeHtml(value || '')}"
+      >
+    </div>
+  `;
+}
+
+function editableSelect(label, id, value, options, full) {
+  return `
+    <div class="detail-field ${full ? 'full' : ''}">
+      <p class="detail-label">${escapeHtml(label)}</p>
+      <select id="${escapeHtml(id)}" class="admin-edit-input">
+        ${options.map(function(option) {
+          return `<option value="${escapeHtml(option.value)}" ${String(value || '') === String(option.value) ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
+        }).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function editableCheckbox(label, id, checked) {
+  return `
+    <label style="display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:10px 13px;background:rgba(255,255,255,.035);color:rgba(255,255,255,.78);font-size:.82rem;">
+      <input id="${escapeHtml(id)}" type="checkbox" ${checked ? 'checked' : ''}>
+      ${escapeHtml(label)}
+    </label>
+  `;
+}
+
 function openModal() {
   trackModal.classList.add('show');
   trackModal.setAttribute('aria-hidden', 'false');
@@ -492,13 +528,38 @@ function closeModal() {
   trackModalBody.innerHTML = '<p>Loading...</p>';
   activeTrackForSave = null;
   setSaveStatus('', '');
-  saveTrackModalFooter.disabled = false;
-  saveTrackModalFooter.textContent = 'Save Changes';
+  resetSaveButton();
 }
 
 function setSaveStatus(message, type) {
   trackSaveStatus.textContent = message || '';
   trackSaveStatus.className = type ? `modal-save-status ${type}` : 'modal-save-status';
+}
+
+function resetSaveButton() {
+  saveTrackModalFooter.disabled = false;
+  saveTrackModalFooter.textContent = 'Save Changes';
+  saveTrackModalFooter.dataset.mode = 'save';
+}
+
+function setFooterButtonToClose() {
+  saveTrackModalFooter.disabled = false;
+  saveTrackModalFooter.textContent = 'Close';
+  saveTrackModalFooter.dataset.mode = 'close';
+}
+
+function markUnsavedChanges() {
+  if (saveTrackModalFooter.dataset.mode === 'close') {
+    resetSaveButton();
+    setSaveStatus('', '');
+  }
+}
+
+function bindEditableChangeListeners() {
+  trackModalBody.querySelectorAll('input, textarea, select').forEach(function(field) {
+    field.addEventListener('input', markUnsavedChanges);
+    field.addEventListener('change', markUnsavedChanges);
+  });
 }
 
 async function openTrackModal(trackId) {
@@ -510,6 +571,7 @@ async function openTrackModal(trackId) {
   trackModalBody.innerHTML = '<p>Loading...</p>';
   activeTrackForSave = null;
   setSaveStatus('', '');
+  resetSaveButton();
   openModal();
 
   try {
@@ -536,9 +598,6 @@ async function openTrackModal(trackId) {
       <div class="track-detail-grid">
         <div>
           <img class="track-detail-cover" src="${escapeHtml(track.coverUrl || '')}" alt="${escapeHtml(track.displayTitle || track.title || 'Track cover')}">
-          <p class="modal-note">
-            Editable now: SoundCloud, YouTube and Short Description.
-          </p>
         </div>
 
         <div class="track-detail-fields">
@@ -547,63 +606,54 @@ async function openTrackModal(trackId) {
           ${detailField('Title', track.title)}
           ${detailField('Artist', track.artist)}
           ${detailField('Collaborators', track.collaborators)}
-          ${detailField('Status', statusLabel(track.status))}
+
+          ${editableSelect('Status', 'statusInput', track.status, [
+            { value: 'visible', label: 'Visible' },
+            { value: 'hidden', label: 'Hidden' },
+            { value: 'upcoming', label: 'Upcoming' }
+          ])}
+
           ${detailField('Category', track.category)}
-          ${detailField('Subgenre', track.subgenre)}
-          ${detailField('Key', track.key)}
-          ${detailField('BPM', track.bpm)}
-          ${detailField('Duration', track.durationLabel)}
+          ${editableInput('Subgenre', 'subgenreInput', track.subgenre, 'text')}
+          ${editableInput('Key', 'keyInput', track.key, 'text')}
+          ${editableInput('BPM', 'bpmInput', track.bpm, 'number')}
+          ${editableInput('Duration', 'durationLabelInput', track.durationLabel, 'text')}
           ${detailField('Release Year', track.releaseYear)}
           ${detailField('Price', money(track.priceMxn))}
           ${detailField('Sort Order', track.sortOrder)}
-          ${detailField('Featured', track.isFeatured ? 'Yes' : 'No')}
-          ${detailField('Latest Release', track.isLatestRelease ? 'Yes' : 'No')}
+
+          <div class="detail-field full">
+            <p class="detail-label">Display Flags</p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+              ${editableCheckbox('Featured', 'isFeaturedInput', track.isFeatured)}
+              ${editableCheckbox('Latest Release', 'isLatestReleaseInput', track.isLatestRelease)}
+            </div>
+          </div>
+
           ${detailField('Stripe Price ID', track.stripePriceId, true)}
           ${detailField('Master Path', track.masterPath, true)}
           ${detailField('Filename', track.filename, true)}
           ${detailField('Cover URL', track.rawCoverUrl || track.coverUrl, true)}
           ${detailField('Preview URL', track.rawPreviewUrl || track.previewUrl, true)}
 
-          <div class="detail-field full">
-            <p class="detail-label">SoundCloud URL</p>
-            <input
-              id="soundcloudUrlInput"
-              class="admin-edit-input"
-              type="url"
-              value="${escapeHtml(track.soundcloudUrl || '')}"
-              placeholder="https://soundcloud.com/..."
-            >
-          </div>
-
+          ${editableInput('SoundCloud URL', 'soundcloudUrlInput', track.soundcloudUrl, 'url', true)}
           ${detailField('Spotify', track.spotifyUrl, true)}
           ${detailField('Apple Music', track.appleMusicUrl, true)}
           ${detailField('Tidal', track.tidalUrl, true)}
-
-          <div class="detail-field full">
-            <p class="detail-label">YouTube URL</p>
-            <input
-              id="youtubeUrlInput"
-              class="admin-edit-input"
-              type="url"
-              value="${escapeHtml(track.youtubeUrl || '')}"
-              placeholder="https://youtu.be/..."
-            >
-          </div>
-
+          ${editableInput('YouTube URL', 'youtubeUrlInput', track.youtubeUrl, 'url', true)}
           ${detailField('Beatport', track.beatportUrl, true)}
 
           <div class="detail-field full">
             <p class="detail-label">Short Description</p>
-            <textarea
-              id="shortDescriptionInput"
-              class="admin-edit-textarea"
-            >${escapeHtml(track.descriptionShort || '')}</textarea>
+            <textarea id="shortDescriptionInput" class="admin-edit-textarea">${escapeHtml(track.descriptionShort || '')}</textarea>
           </div>
 
           ${detailField('Long Description', track.descriptionLong, true)}
         </div>
       </div>
     `;
+
+    bindEditableChangeListeners();
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
@@ -611,20 +661,26 @@ async function openTrackModal(trackId) {
   }
 }
 
+function valueOf(id, fallback) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : fallback;
+}
+
+function checkedOf(id, fallback) {
+  const el = document.getElementById(id);
+  return el ? el.checked : fallback;
+}
+
 async function saveTrackSafeChanges() {
+  if (saveTrackModalFooter.dataset.mode === 'close') {
+    closeModal();
+    return;
+  }
+
   const track = activeTrackForSave;
 
   if (!track || !track.id || !currentSession) {
     setSaveStatus('No track loaded.', 'error');
-    return;
-  }
-
-  const shortDescriptionInput = document.getElementById('shortDescriptionInput');
-  const soundcloudUrlInput = document.getElementById('soundcloudUrlInput');
-  const youtubeUrlInput = document.getElementById('youtubeUrlInput');
-
-  if (!shortDescriptionInput) {
-    setSaveStatus('Nothing to save.', 'error');
     return;
   }
 
@@ -638,25 +694,25 @@ async function saveTrackSafeChanges() {
     title: track.title,
     artist: track.artist,
     collaborators: track.collaborators,
-    status: track.status,
+    status: valueOf('statusInput', track.status),
     category: track.category,
-    subgenre: track.subgenre,
-    key: track.key,
-    bpm: track.bpm,
-    durationLabel: track.durationLabel,
+    subgenre: valueOf('subgenreInput', track.subgenre),
+    key: valueOf('keyInput', track.key),
+    bpm: valueOf('bpmInput', track.bpm),
+    durationLabel: valueOf('durationLabelInput', track.durationLabel),
     releaseYear: track.releaseYear,
     priceMxn: track.priceMxn,
     sortOrder: track.sortOrder,
-    isFeatured: track.isFeatured,
-    isLatestRelease: track.isLatestRelease,
+    isFeatured: checkedOf('isFeaturedInput', track.isFeatured),
+    isLatestRelease: checkedOf('isLatestReleaseInput', track.isLatestRelease),
     slug: track.slug,
-    soundcloudUrl: soundcloudUrlInput ? soundcloudUrlInput.value.trim() : track.soundcloudUrl,
+    soundcloudUrl: valueOf('soundcloudUrlInput', track.soundcloudUrl),
     spotifyUrl: track.spotifyUrl,
     appleMusicUrl: track.appleMusicUrl,
     tidalUrl: track.tidalUrl,
-    youtubeUrl: youtubeUrlInput ? youtubeUrlInput.value.trim() : track.youtubeUrl,
+    youtubeUrl: valueOf('youtubeUrlInput', track.youtubeUrl),
     beatportUrl: track.beatportUrl,
-    descriptionShort: shortDescriptionInput.value.trim(),
+    descriptionShort: valueOf('shortDescriptionInput', track.descriptionShort),
     descriptionLong: track.descriptionLong
   };
 
@@ -682,13 +738,12 @@ async function saveTrackSafeChanges() {
 
     setSaveStatus('Saved.', 'ok');
     trackModalTitle.textContent = data.track.displayTitle || data.track.title || 'Track details';
+    setFooterButtonToClose();
 
     await loadAdminTracks();
   } catch (err) {
     setSaveStatus(err.message || 'Unable to save.', 'error');
-  } finally {
-    saveTrackModalFooter.disabled = false;
-    saveTrackModalFooter.textContent = 'Save Changes';
+    resetSaveButton();
   }
 }
 
