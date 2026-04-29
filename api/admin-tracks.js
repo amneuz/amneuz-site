@@ -182,8 +182,20 @@ function mapAlbum(album) {
     stripeProductId: album.stripe_product_id,
     stripePriceId: album.stripe_price_id,
     priceMxn: album.price_mxn,
-    createdAt: album.created_at,
-    updatedAt: album.updated_at
+
+soundcloudUrl: album.soundcloud_url,
+
+spotifyUrl: album.spotify_url,
+
+appleMusicUrl: album.apple_music_url,
+
+tidalUrl: album.tidal_url,
+
+youtubeUrl: album.youtube_url,
+
+beatportUrl: album.beatport_url,
+
+createdAt: album.created_at,
   };
 }
 
@@ -443,9 +455,23 @@ function buildAlbumInput(body, isUpdate) {
     is_featured: cleanBoolean(body.isFeatured),
     is_latest_release: cleanBoolean(body.isLatestRelease),
     sort_order: sortOrder,
-    description_short: cleanString(body.descriptionShort, 240),
-    description_long: cleanString(body.descriptionLong, 1200),
-    updated_at: isUpdate ? new Date().toISOString() : undefined
+    soundcloud_url: cleanUrl(body.soundcloudUrl),
+
+spotify_url: cleanUrl(body.spotifyUrl),
+
+apple_music_url: cleanUrl(body.appleMusicUrl),
+
+tidal_url: cleanUrl(body.tidalUrl),
+
+youtube_url: cleanUrl(body.youtubeUrl),
+
+beatport_url: cleanUrl(body.beatportUrl),
+
+description_short: cleanString(body.descriptionShort, 240),
+
+description_long: cleanString(body.descriptionLong, 1200),
+
+updated_at: isUpdate ? new Date().toISOString() : undefined
   };
 }
 
@@ -538,8 +564,22 @@ async function listAlbums(res) {
       release_year,
       release_date,
       cover_url,
-      description_short,
-      description_long,
+
+soundcloud_url,
+
+spotify_url,
+
+apple_music_url,
+
+tidal_url,
+
+youtube_url,
+
+beatport_url,
+
+description_short,
+
+description_long,
       status,
       is_featured,
       is_latest_release,
@@ -575,8 +615,22 @@ async function getAlbumById(id) {
       release_year,
       release_date,
       cover_url,
-      description_short,
-      description_long,
+
+soundcloud_url,
+
+spotify_url,
+
+apple_music_url,
+
+tidal_url,
+
+youtube_url,
+
+beatport_url,
+
+description_short,
+
+description_long,
       status,
       is_featured,
       is_latest_release,
@@ -957,10 +1011,16 @@ async function createAlbum(admin, req, res) {
       is_featured: input.is_featured,
       is_latest_release: input.is_latest_release,
       sort_order: sortOrder,
-      description_short: input.description_short,
-      description_long: input.description_long,
-      stripe_product_id: stripeResult.product.id,
-      stripe_price_id: stripeResult.price.id
+      soundcloud_url: input.soundcloud_url,
+spotify_url: input.spotify_url,
+apple_music_url: input.apple_music_url,
+tidal_url: input.tidal_url,
+youtube_url: input.youtube_url,
+beatport_url: input.beatport_url,
+description_short: input.description_short,
+description_long: input.description_long,
+stripe_product_id: stripeResult.product.id,
+stripe_price_id: stripeResult.price.id
     };
 
     const { data, error } = await supabaseAdmin
@@ -976,8 +1036,22 @@ async function createAlbum(admin, req, res) {
         release_year,
         release_date,
         cover_url,
-        description_short,
-        description_long,
+
+soundcloud_url,
+
+spotify_url,
+
+apple_music_url,
+
+tidal_url,
+
+youtube_url,
+
+beatport_url,
+
+description_short,
+
+description_long,
         status,
         is_featured,
         is_latest_release,
@@ -1082,9 +1156,24 @@ async function updateAlbum(admin, req, res, id) {
     is_featured: input.is_featured,
     is_latest_release: input.is_latest_release,
     sort_order: input.sort_order,
-    description_short: input.description_short,
-    description_long: input.description_long,
-    updated_at: new Date().toISOString()
+
+soundcloud_url: input.soundcloud_url,
+
+spotify_url: input.spotify_url,
+
+apple_music_url: input.apple_music_url,
+
+tidal_url: input.tidal_url,
+
+youtube_url: input.youtube_url,
+
+beatport_url: input.beatport_url,
+
+description_short: input.description_short,
+
+description_long: input.description_long,
+
+updated_at: new Date().toISOString()
   };
 
   if (stripePriceChange && stripePriceChange.stripeProductId) {
@@ -1109,8 +1198,22 @@ async function updateAlbum(admin, req, res, id) {
       release_year,
       release_date,
       cover_url,
-      description_short,
-      description_long,
+
+soundcloud_url,
+
+spotify_url,
+
+apple_music_url,
+
+tidal_url,
+
+youtube_url,
+
+beatport_url,
+
+description_short,
+
+description_long,
       status,
       is_featured,
       is_latest_release,

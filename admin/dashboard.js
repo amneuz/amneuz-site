@@ -1049,6 +1049,18 @@ function openNewAlbumModal() {
       ${newTrackField('Release Date', 'albumReleaseDateInput', 'date', '', false)}
       ${newTrackField('Sort Order', 'albumSortOrderInput', 'number', '', false)}
 
+            ${newTrackField('SoundCloud URL', 'albumSoundcloudInput', 'url', '', true)}
+
+      ${newTrackField('Spotify URL', 'albumSpotifyInput', 'url', '', true)}
+
+      ${newTrackField('Apple Music URL', 'albumAppleMusicInput', 'url', '', true)}
+
+      ${newTrackField('Tidal URL', 'albumTidalInput', 'url', '', true)}
+
+      ${newTrackField('YouTube URL', 'albumYoutubeInput', 'url', '', true)}
+
+      ${newTrackField('Beatport URL', 'albumBeatportInput', 'url', '', true)}
+
       <div class="detail-field full">
         <p class="detail-label">Display Flags</p>
         <div style="display:flex;flex-wrap:wrap;gap:10px;">
@@ -1145,6 +1157,18 @@ async function openAlbumModal(albumId) {
           ${detailField('Stripe Product ID', album.stripeProductId, true)}
           ${detailField('Stripe Price ID', album.stripePriceId, true)}
           ${detailField('Cover URL', album.rawCoverUrl || album.coverUrl, true)}
+
+          ${editableInput('SoundCloud URL', 'albumSoundcloudInput', album.soundcloudUrl, 'url', true)}
+
+          ${editableInput('Spotify URL', 'albumSpotifyInput', album.spotifyUrl, 'url', true)}
+
+          ${editableInput('Apple Music URL', 'albumAppleMusicInput', album.appleMusicUrl, 'url', true)}
+
+          ${editableInput('Tidal URL', 'albumTidalInput', album.tidalUrl, 'url', true)}
+
+          ${editableInput('YouTube URL', 'albumYoutubeInput', album.youtubeUrl, 'url', true)}
+
+          ${editableInput('Beatport URL', 'albumBeatportInput', album.beatportUrl, 'url', true)}
 
           <div class="detail-field full">
             <p class="detail-label">Short Description</p>
@@ -1391,9 +1415,22 @@ function albumPayloadFromForm(existingAlbum) {
     releaseDate: valueOf('albumReleaseDateInput', existingAlbum ? existingAlbum.releaseDate : ''),
     sortOrder: valueOf('albumSortOrderInput', existingAlbum ? existingAlbum.sortOrder : ''),
     isFeatured: checkedOf('albumFeaturedInput', existingAlbum ? existingAlbum.isFeatured : false),
-    isLatestRelease: checkedOf('albumLatestReleaseInput', existingAlbum ? existingAlbum.isLatestRelease : false),
-    descriptionShort: valueOf('albumShortDescriptionInput', existingAlbum ? existingAlbum.descriptionShort : ''),
-    descriptionLong: valueOf('albumLongDescriptionInput', existingAlbum ? existingAlbum.descriptionLong : '')
+
+isLatestRelease: checkedOf('albumLatestReleaseInput', existingAlbum ? existingAlbum.isLatestRelease : false),
+
+soundcloudUrl: valueOf('albumSoundcloudInput', existingAlbum ? existingAlbum.soundcloudUrl : ''),
+
+spotifyUrl: valueOf('albumSpotifyInput', existingAlbum ? existingAlbum.spotifyUrl : ''),
+
+appleMusicUrl: valueOf('albumAppleMusicInput', existingAlbum ? existingAlbum.appleMusicUrl : ''),
+
+tidalUrl: valueOf('albumTidalInput', existingAlbum ? existingAlbum.tidalUrl : ''),
+
+youtubeUrl: valueOf('albumYoutubeInput', existingAlbum ? existingAlbum.youtubeUrl : ''),
+
+beatportUrl: valueOf('albumBeatportInput', existingAlbum ? existingAlbum.beatportUrl : ''),
+
+descriptionShort: valueOf('albumShortDescriptionInput', existingAlbum ? existingAlbum.descriptionShort : ''),
   };
 }
 
