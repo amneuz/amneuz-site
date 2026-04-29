@@ -1,4 +1,7 @@
+const Stripe = require('stripe');
 const { requireAdmin, supabaseAdmin, getRequestIp } = require('./_adminAuth');
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -36,7 +39,17 @@ function getPublicUrl(path) {
 async function getTrack(id) {
   const { data, error } = await supabaseAdmin
     .from('tracks')
-    .select('id, catalog_code, slug, title, cover_url')
+    .select(`
+      id,
+      catalog_code,
+      slug,
+      title,
+      artist,
+      collaborators,
+      cover_url,
+      stripe_product_id,
+      stripe_price_id
+    `)
     .eq('id', id)
     .single();
 
@@ -57,7 +70,74 @@ function safeName(value) {
     .slice(0, 80) || 'track';
 }
 
-async function writeAudit(admin, req, track, uploadedPath, publicUrl) {
+async function resolveStripeProductId(track) {
+  if (track.stripe_product_id) {
+    return track.stripe_product_id;
+  }
+
+  if (!track.stripe_price_id) {
+    return null;
+  }
+
+  try {
+    const price = await stripe.prices.retrieve(track.stripe_price_id);
+    const productId = typeof price.product === 'string' ? price.product : price.product && price.product.id;
+
+    if (!productId) {
+      return null;
+    }
+
+    await supabaseAdmin
+      .from('tracks')
+      .update({
+        stripe_product_id: productId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', track.id);
+
+    return productId;
+  } catch (err) {
+    console.error('Unable to resolve Stripe product from price:', err.message || err);
+    return null;
+  }
+}
+
+async function syncStripeCover(track, publicUrl) {
+  const productId = await resolveStripeProductId(track);
+
+  if (!productId) {
+    return {
+      synced: false,
+      reason: 'missing_stripe_product_id'
+    };
+  }
+
+  try {
+    await stripe.products.update(productId, {
+      images: [publicUrl],
+      metadata: {
+        catalog_code: track.catalog_code || '',
+        source: 'amneuz_admin',
+        cover_synced: 'true'
+      }
+    });
+
+    return {
+      synced: true,
+      stripe_product_id: productId
+    };
+  } catch (err) {
+    console.error('Stripe cover sync failed:', err.message || err);
+
+    return {
+      synced: false,
+      stripe_product_id: productId,
+      reason: err.message || 'stripe_cover_sync_failed'
+    };
+  }
+}
+
+async function writeAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult) {
   try {
     await supabaseAdmin
       .from('admin_audit_logs')
@@ -76,7 +156,10 @@ async function writeAudit(admin, req, track, uploadedPath, publicUrl) {
           catalog_code: track.catalog_code,
           title: track.title,
           uploaded_path: uploadedPath,
-          public_url: publicUrl
+          public_url: publicUrl,
+          stripe_cover_synced: stripeSyncResult && stripeSyncResult.synced ? true : false,
+          stripe_product_id: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : null,
+          stripe_sync_reason: stripeSyncResult && stripeSyncResult.reason ? stripeSyncResult.reason : null
         }
       });
   } catch (err) {
@@ -162,14 +245,22 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Unable to create cover URL' });
     }
 
+    const stripeSyncResult = await syncStripeCover(track, publicUrl);
+
+    const updatePayload = {
+      cover_url: publicUrl,
+      updated_at: new Date().toISOString()
+    };
+
+    if (stripeSyncResult && stripeSyncResult.stripe_product_id && !track.stripe_product_id) {
+      updatePayload.stripe_product_id = stripeSyncResult.stripe_product_id;
+    }
+
     const { data: updatedTrack, error: updateError } = await supabaseAdmin
       .from('tracks')
-      .update({
-        cover_url: publicUrl,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', trackId)
-      .select('id, catalog_code, title, cover_url')
+      .select('id, catalog_code, title, cover_url, stripe_product_id')
       .single();
 
     if (updateError || !updatedTrack) {
@@ -177,12 +268,14 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Unable to update track cover' });
     }
 
-    await writeAudit(admin, req, track, uploadedPath, publicUrl);
+    await writeAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult);
 
     return res.status(200).json({
       ok: true,
       coverUrl: publicUrl,
       path: uploadedPath,
+      stripeCoverSynced: stripeSyncResult && stripeSyncResult.synced ? true : false,
+      stripeProductId: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : updatedTrack.stripe_product_id,
       track: updatedTrack
     });
   } catch (err) {

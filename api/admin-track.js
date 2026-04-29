@@ -1,4 +1,7 @@
+const Stripe = require('stripe');
 const { requireAdmin, supabaseAdmin, getRequestIp } = require('./_adminAuth');
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const ALLOWED_STATUS = ['visible', 'hidden', 'upcoming'];
 const ALLOWED_CATEGORY = ['remixes', 'originals', 'album'];
@@ -88,6 +91,7 @@ function mapTrack(track) {
     durationSeconds: track.duration_seconds,
     durationLabel: track.duration_label,
     releaseYear: track.release_year,
+    releaseDate: track.release_date,
     priceMxn: track.price_mxn,
     status: track.status,
     isFeatured: track.is_featured,
@@ -99,6 +103,7 @@ function mapTrack(track) {
     rawPreviewUrl: track.preview_url,
     masterPath: track.master_path,
     filename: track.filename,
+    stripeProductId: track.stripe_product_id,
     stripePriceId: track.stripe_price_id,
     soundcloudUrl: track.soundcloud_url,
     spotifyUrl: track.spotify_url,
@@ -164,7 +169,7 @@ function cleanNumber(value, min, max) {
     return null;
   }
 
-  return number;
+  return Math.round(number);
 }
 
 function cleanBoolean(value) {
@@ -179,7 +184,8 @@ function buildUpdatePayload(body) {
   const status = cleanString(body.status, 40);
   const bpm = cleanNumber(body.bpm, 1, 300);
   const releaseYear = cleanNumber(body.releaseYear, 1900, 2100);
-  const priceMxn = cleanNumber(body.priceMxn, 0, 100000);
+  const releaseDateRaw = cleanString(body.releaseDate, 40);
+  const priceMxn = cleanNumber(body.priceMxn, 1, 100000);
   const sortOrder = cleanNumber(body.sortOrder, 0, 100000);
 
   if (!title) {
@@ -194,6 +200,16 @@ function buildUpdatePayload(body) {
     throw new Error('Invalid status');
   }
 
+  let releaseDate = null;
+
+  if (releaseDateRaw) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(releaseDateRaw)) {
+      throw new Error('Invalid release date');
+    }
+
+    releaseDate = releaseDateRaw;
+  }
+
   return {
     title,
     artist,
@@ -204,6 +220,7 @@ function buildUpdatePayload(body) {
     bpm,
     duration_label: cleanString(body.durationLabel, 40),
     release_year: releaseYear,
+    release_date: releaseDate,
     price_mxn: priceMxn,
     status,
     is_featured: cleanBoolean(body.isFeatured),
@@ -240,6 +257,7 @@ async function getTrackById(id) {
       duration_seconds,
       duration_label,
       release_year,
+      release_date,
       price_mxn,
       status,
       is_featured,
@@ -249,6 +267,7 @@ async function getTrackById(id) {
       preview_url,
       master_path,
       filename,
+      stripe_product_id,
       stripe_price_id,
       soundcloud_url,
       spotify_url,
@@ -291,6 +310,151 @@ async function writeAudit(admin, req, action, resourceId, metadata) {
   } catch (err) {
     console.error('Admin audit write failed:', err.message || err);
   }
+}
+
+async function resolveStripeProductId(track) {
+  if (track.stripe_product_id) {
+    return track.stripe_product_id;
+  }
+
+  if (!track.stripe_price_id) {
+    return null;
+  }
+
+  try {
+    const price = await stripe.prices.retrieve(track.stripe_price_id);
+    const productId = typeof price.product === 'string' ? price.product : price.product && price.product.id;
+
+    return productId || null;
+  } catch (err) {
+    console.error('Unable to resolve Stripe product from existing price:', err.message || err);
+    return null;
+  }
+}
+
+async function createStripeProductForTrack(track) {
+  const displayName = formatTitle(track);
+
+  const product = await stripe.products.create({
+    name: displayName,
+    description: track.description_short || 'Official WAV extended mix, direct from AMNEUZ.',
+    images: track.cover_url ? [track.cover_url] : [],
+    metadata: {
+      source: 'amneuz_admin',
+      catalog_code: track.catalog_code || '',
+      slug: track.slug || '',
+      artist: track.artist || '',
+      title: track.title || '',
+      category: track.category || ''
+    }
+  });
+
+  return product.id;
+}
+
+async function ensureStripeProductId(track) {
+  const resolvedProductId = await resolveStripeProductId(track);
+
+  if (resolvedProductId) {
+    return {
+      productId: resolvedProductId,
+      created: false
+    };
+  }
+
+  const createdProductId = await createStripeProductForTrack(track);
+
+  return {
+    productId: createdProductId,
+    created: true
+  };
+}
+
+async function syncStripeProductMetadata(track, productId) {
+  if (!productId) {
+    return;
+  }
+
+  const displayName = formatTitle(track);
+
+  try {
+    await stripe.products.update(productId, {
+      name: displayName,
+      description: track.description_short || 'Official WAV extended mix, direct from AMNEUZ.',
+      images: track.cover_url ? [track.cover_url] : undefined,
+      metadata: {
+        source: 'amneuz_admin',
+        catalog_code: track.catalog_code || '',
+        slug: track.slug || '',
+        artist: track.artist || '',
+        title: track.title || '',
+        category: track.category || ''
+      }
+    });
+  } catch (err) {
+    console.error('Stripe product metadata sync failed:', err.message || err);
+  }
+}
+
+async function updateStripePriceForTrack(track, newPriceMxn) {
+  const oldPriceId = track.stripe_price_id || null;
+  const oldPriceMxn = Number(track.price_mxn || 0);
+
+  if (Number(newPriceMxn) === oldPriceMxn) {
+    return {
+      changed: false,
+      stripeProductId: track.stripe_product_id || null,
+      stripePriceId: oldPriceId,
+      oldPriceId,
+      oldPriceMxn,
+      newPriceMxn
+    };
+  }
+
+  const ensured = await ensureStripeProductId(track);
+  const productId = ensured.productId;
+
+  if (!productId) {
+    throw new Error('Unable to resolve Stripe product');
+  }
+
+  const newPrice = await stripe.prices.create({
+    product: productId,
+    unit_amount: Number(newPriceMxn) * 100,
+    currency: 'mxn',
+    metadata: {
+      source: 'amneuz_admin',
+      catalog_code: track.catalog_code || '',
+      slug: track.slug || '',
+      product_type: 'track',
+      payment_type: 'one_time',
+      replaces_price_id: oldPriceId || ''
+    }
+  });
+
+  await stripe.products.update(productId, {
+    default_price: newPrice.id
+  });
+
+  if (oldPriceId && oldPriceId !== newPrice.id) {
+    try {
+      await stripe.prices.update(oldPriceId, {
+        active: false
+      });
+    } catch (err) {
+      console.error('Unable to deactivate old Stripe price:', err.message || err);
+    }
+  }
+
+  return {
+    changed: true,
+    stripeProductId: productId,
+    stripeProductCreated: ensured.created,
+    stripePriceId: newPrice.id,
+    oldPriceId,
+    oldPriceMxn,
+    newPriceMxn
+  };
 }
 
 function validateMasterPayload(body) {
@@ -448,6 +612,7 @@ async function finalizeMasterUpload(admin, req, res, id) {
       duration_seconds,
       duration_label,
       release_year,
+      release_date,
       price_mxn,
       status,
       is_featured,
@@ -457,6 +622,7 @@ async function finalizeMasterUpload(admin, req, res, id) {
       preview_url,
       master_path,
       filename,
+      stripe_product_id,
       stripe_price_id,
       soundcloud_url,
       spotify_url,
@@ -515,6 +681,25 @@ async function updateTrack(admin, req, res, id) {
     return res.status(400).json({ error: err.message || 'Invalid track data' });
   }
 
+  let stripePriceChange = {
+    changed: false
+  };
+
+  try {
+    stripePriceChange = await updateStripePriceForTrack(existingTrack, updatePayload.price_mxn);
+  } catch (err) {
+    console.error('Stripe price update failed:', err.message || err);
+    return res.status(500).json({ error: 'Unable to update Stripe price' });
+  }
+
+  if (stripePriceChange && stripePriceChange.stripeProductId) {
+    updatePayload.stripe_product_id = stripePriceChange.stripeProductId;
+  }
+
+  if (stripePriceChange && stripePriceChange.stripePriceId) {
+    updatePayload.stripe_price_id = stripePriceChange.stripePriceId;
+  }
+
   const { data, error } = await supabaseAdmin
     .from('tracks')
     .update(updatePayload)
@@ -534,6 +719,7 @@ async function updateTrack(admin, req, res, id) {
       duration_seconds,
       duration_label,
       release_year,
+      release_date,
       price_mxn,
       status,
       is_featured,
@@ -543,6 +729,7 @@ async function updateTrack(admin, req, res, id) {
       preview_url,
       master_path,
       filename,
+      stripe_product_id,
       stripe_price_id,
       soundcloud_url,
       spotify_url,
@@ -562,14 +749,23 @@ async function updateTrack(admin, req, res, id) {
     return res.status(500).json({ error: 'Unable to update track' });
   }
 
+  await syncStripeProductMetadata(data, data.stripe_product_id);
+
   await writeAudit(admin, req, 'admin.track.updated', id, {
     catalog_code: data.catalog_code,
     title: data.title,
-    changed_fields: Object.keys(updatePayload)
+    changed_fields: Object.keys(updatePayload),
+    stripe_price_changed: stripePriceChange.changed ? true : false,
+    old_price_mxn: stripePriceChange.oldPriceMxn || null,
+    new_price_mxn: stripePriceChange.newPriceMxn || null,
+    old_stripe_price_id: stripePriceChange.oldPriceId || null,
+    new_stripe_price_id: stripePriceChange.stripePriceId || null,
+    stripe_product_id: data.stripe_product_id || null
   });
 
   return res.status(200).json({
-    track: mapTrack(data)
+    track: mapTrack(data),
+    stripePriceChanged: stripePriceChange.changed ? true : false
   });
 }
 
