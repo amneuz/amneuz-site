@@ -17,6 +17,7 @@ const trackSaveStatus = document.getElementById('trackSaveStatus');
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_KEY = 'amneuz_admin_last_activity';
+const ADMIN_CATALOG_TAB_KEY = 'amneuz_admin_catalog_tab';
 
 let timeoutId = null;
 let currentSession = null;
@@ -138,6 +139,51 @@ function ensureAdminStyles() {
   const style = document.createElement('style');
   style.id = 'adminDynamicStyles';
   style.textContent = `
+    .admin-catalog-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 28px;
+      padding: 6px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      background: rgba(0,0,0,.18);
+      width: fit-content;
+      max-width: 100%;
+    }
+
+    .admin-catalog-tab {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: rgba(255,255,255,.58);
+      padding: 10px 15px 8px;
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .admin-catalog-tab:hover {
+      color: #fff;
+      background: rgba(255,255,255,.06);
+    }
+
+    .admin-catalog-tab.active {
+      color: #fff;
+      border-color: rgba(255,255,255,.18);
+      background: rgba(255,255,255,.1);
+    }
+
+    .admin-catalog-panel {
+      display: none;
+    }
+
+    .admin-catalog-panel.active {
+      display: block;
+    }
+
     .admin-tracks-section,
     .admin-albums-section {
       margin-top: 28px;
@@ -455,6 +501,15 @@ function ensureAdminStyles() {
     }
 
     @media (max-width: 760px) {
+      .admin-catalog-tabs {
+        width: 100%;
+      }
+
+      .admin-catalog-tab {
+        flex: 1;
+        text-align: center;
+      }
+
       .admin-section-header {
         flex-direction: column;
       }
@@ -497,6 +552,67 @@ function ensureAdminStyles() {
   document.head.appendChild(style);
 }
 
+function ensureCatalogTabs() {
+  ensureAdminStyles();
+
+  let tabs = document.getElementById('catalogTabs');
+
+  if (tabs) {
+    return tabs;
+  }
+
+  const main = document.querySelector('main') || document.body;
+
+  tabs = document.createElement('div');
+  tabs.id = 'catalogTabs';
+  tabs.className = 'admin-catalog-tabs';
+  tabs.innerHTML = `
+    <button class="admin-catalog-tab active" type="button" data-admin-tab="tracks">Tracks</button>
+    <button class="admin-catalog-tab" type="button" data-admin-tab="albums">Albums & EPs</button>
+  `;
+
+  main.appendChild(tabs);
+
+  tabs.querySelectorAll('.admin-catalog-tab').forEach(function(button) {
+    button.addEventListener('click', function() {
+      setActiveCatalogTab(button.getAttribute('data-admin-tab') || 'tracks');
+    });
+  });
+
+  return tabs;
+}
+
+function setActiveCatalogTab(tabName) {
+  const activeTab = tabName === 'albums' ? 'albums' : 'tracks';
+
+  document.querySelectorAll('.admin-catalog-tab').forEach(function(button) {
+    button.classList.toggle('active', button.getAttribute('data-admin-tab') === activeTab);
+  });
+
+  const tracksSection = document.getElementById('tracksSection');
+  const albumsSection = document.getElementById('albumsSection');
+
+  if (tracksSection) {
+    tracksSection.classList.toggle('active', activeTab === 'tracks');
+  }
+
+  if (albumsSection) {
+    albumsSection.classList.toggle('active', activeTab === 'albums');
+  }
+
+  try {
+    window.localStorage.setItem(ADMIN_CATALOG_TAB_KEY, activeTab);
+  } catch (err) {}
+}
+
+function getSavedCatalogTab() {
+  try {
+    return window.localStorage.getItem(ADMIN_CATALOG_TAB_KEY) || 'tracks';
+  } catch (err) {
+    return 'tracks';
+  }
+}
+
 function ensureTracksSection() {
   ensureAdminStyles();
 
@@ -510,7 +626,7 @@ function ensureTracksSection() {
 
   section = document.createElement('section');
   section.id = 'tracksSection';
-  section.className = 'admin-tracks-section';
+  section.className = 'admin-tracks-section admin-catalog-panel active';
   section.innerHTML = `
     <div class="admin-section-header">
       <div>
@@ -549,7 +665,7 @@ function ensureAlbumsSection() {
 
   section = document.createElement('section');
   section.id = 'albumsSection';
-  section.className = 'admin-albums-section';
+  section.className = 'admin-albums-section admin-catalog-panel';
   section.innerHTML = `
     <div class="admin-section-header">
       <div>
@@ -2009,8 +2125,12 @@ async function verifyAdmin() {
   registerActivityListeners();
   scheduleSessionCheck();
 
+  ensureCatalogTabs();
+
   await loadAdminTracks();
   await loadAdminAlbums();
+
+  setActiveCatalogTab(getSavedCatalogTab());
 
   const refreshTracksBtn = document.getElementById('refreshTracksBtn');
 
