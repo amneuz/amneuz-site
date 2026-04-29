@@ -53,11 +53,11 @@ function mapTrack(track) {
   };
 }
 
-function mapAlbum(album, tracks) {
+function mapAlbum(album, albumTracks) {
   return {
     id: album.id,
     slug: album.slug,
-    releaseType: album.release_type || 'album',
+    releaseType: 'album',
     title: formatTitle(album),
     rawTitle: album.title,
     artist: album.artist,
@@ -78,7 +78,7 @@ function mapAlbum(album, tracks) {
     isLatestRelease: album.is_latest_release,
     descriptionShort: album.description_short,
     descriptionLong: album.description_long,
-    tracks: tracks || []
+    tracks: albumTracks || []
   };
 }
 
@@ -139,7 +139,6 @@ async function getVisibleAlbums() {
       title,
       artist,
       collaborators,
-      release_type,
       release_year,
       release_date,
       cover_url,
