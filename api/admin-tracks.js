@@ -155,20 +155,6 @@ async function slugExists(slug) {
   return Boolean(data);
 }
 
-async function catalogCodeExists(catalogCode) {
-  const { data, error } = await supabaseAdmin
-    .from('tracks')
-    .select('id')
-    .eq('catalog_code', catalogCode)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return Boolean(data);
-}
-
 async function generateUniqueSlug(title) {
   const base = slugify(title) || `track-${Date.now()}`;
 
@@ -183,29 +169,58 @@ async function generateUniqueSlug(title) {
   return candidate;
 }
 
-async function generateCatalogCode() {
-  const prefix = 'AMNEUZ';
+function extractAmzNumber(catalogCode) {
+  const match = String(catalogCode || '').trim().match(/^AMZ-(\d{3})$/i);
 
-  const { count, error } = await supabaseAdmin
+  if (!match) {
+    return null;
+  }
+
+  const number = Number(match[1]);
+
+  if (!Number.isFinite(number) || number <= 0) {
+    return null;
+  }
+
+  return number;
+}
+
+async function generateCatalogCode() {
+  const { data, error } = await supabaseAdmin
     .from('tracks')
-    .select('id', { count: 'exact', head: true });
+    .select('catalog_code')
+    .not('catalog_code', 'is', null);
 
   if (error) {
     throw error;
   }
 
-  let number = Number(count || 0) + 1;
-  let candidate = `${prefix}-${String(number).padStart(3, '0')}`;
+  const usedNumbers = new Set();
 
-  while (await catalogCodeExists(candidate)) {
-    number += 1;
-    candidate = `${prefix}-${String(number).padStart(3, '0')}`;
+  (data || []).forEach(function(row) {
+    const number = extractAmzNumber(row.catalog_code);
+
+    if (number) {
+      usedNumbers.add(number);
+    }
+  });
+
+  let nextNumber = 1;
+
+  while (usedNumbers.has(nextNumber)) {
+    nextNumber += 1;
   }
 
-  return candidate;
+  return `AMZ-${String(nextNumber).padStart(3, '0')}`;
 }
 
-async function getNextSortOrder() {
+async function getNextSortOrderFromCatalog(catalogCode) {
+  const number = extractAmzNumber(catalogCode);
+
+  if (number) {
+    return number * 10;
+  }
+
   const { data, error } = await supabaseAdmin
     .from('tracks')
     .select('sort_order')
@@ -388,6 +403,10 @@ async function createStripeProductAndPrice(input, slug, catalogCode) {
     }
   });
 
+  await stripe.products.update(product.id, {
+    default_price: price.id
+  });
+
   return {
     product,
     price
@@ -415,7 +434,7 @@ async function createTrack(admin, req, res) {
     const slug = await generateUniqueSlug(input.title);
     const catalogCode = await generateCatalogCode();
     const sortOrder = input.sort_order === null || typeof input.sort_order === 'undefined'
-      ? await getNextSortOrder()
+      ? await getNextSortOrderFromCatalog(catalogCode)
       : input.sort_order;
 
     const stripeResult = await createStripeProductAndPrice(input, slug, catalogCode);
