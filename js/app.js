@@ -439,23 +439,41 @@ function playCurrent(){
 }
 
 function closePreview(){
+
   clearInterval(previewFade);
 
   previewSwitching=true;
 
   if(currentWaveSurfer){
+
     currentWaveSurfer.pause();
+
     currentWaveSurfer.destroy();
+
     currentWaveSurfer=null;
+
   }
 
   previewSwitching=false;
+
   currentPreviewTrackId=null;
 
-  all('.track-waveform').forEach(function(w){w.innerHTML=''});
+  all('.track-waveform').forEach(function(w){
+
+    w.innerHTML='';
+
+  });
+
+  all('.track,.album-track').forEach(function(x){
+
+    x.classList.remove('active','playing','loading');
+
+  });
 
   resumeAmbientAfterPreview();
+
   updateTrackStates();
+
 }
 
 function togglePreview(t){
@@ -477,27 +495,35 @@ function togglePreview(t){
 
 function openPreview(t){
   var row=document.querySelector('.track[data-track-id="'+t.id+'"],.album-track[data-track-id="'+t.id+'"]');
+  var expanded=row?row.querySelector('.album-track-expanded'):null;
   var w=row?row.querySelector('.track-waveform'):null;
-  if (w) {
-
-  w.style.display = 'block';
-
-  w.offsetHeight;
-
-}
   var src=t.preview||('assets/audio/'+t.id+'-preview.wav');
   var isMobile=window.matchMedia&&window.matchMedia('(max-width:560px)').matches;
   var waveHeight=isMobile?44:64;
 
-  all('.track,.album-track').forEach(function(x){x.classList.remove('active','playing','loading')});
-  all('.track-waveform').forEach(function(x){x.innerHTML=''});
+  all('.track,.album-track').forEach(function(x){
+    x.classList.remove('active','playing','loading');
+  });
 
-  if(row)row.classList.add('active','loading');
+  all('.track-waveform').forEach(function(x){
+    x.innerHTML='';
+  });
+
+  if(row){
+    row.classList.add('active','loading');
+  }
+
+  if(expanded){
+    expanded.style.display='block';
+  }
 
   if(!w||!window.WaveSurfer){
     if(row)row.classList.remove('loading');
     return;
   }
+
+  w.innerHTML='';
+  w.style.display='block';
 
   clearInterval(previewFade);
 
@@ -512,54 +538,60 @@ function openPreview(t){
   previewSwitching=false;
   currentPreviewTrackId=t.id;
 
-  currentWaveSurfer=WaveSurfer.create({
-    container:w,
-    waveColor:'rgba(255,255,255,.2)',
-    progressColor:'#55ff8c',
-    cursorColor:'transparent',
-    cursorWidth:0,
-    height:waveHeight,
-    normalize:true,
-    dragToSeek:true,
-    hideScrollbar:true,
-    barWidth:1,
-    barGap:isMobile?3:4,
-    barRadius:999
+  window.requestAnimationFrame(function(){
+    window.requestAnimationFrame(function(){
+      if(!row||!w)return;
+
+      currentWaveSurfer=WaveSurfer.create({
+        container:w,
+        waveColor:'rgba(255,255,255,.2)',
+        progressColor:'#55ff8c',
+        cursorColor:'transparent',
+        cursorWidth:0,
+        height:waveHeight,
+        normalize:true,
+        dragToSeek:true,
+        hideScrollbar:true,
+        barWidth:1,
+        barGap:isMobile?3:4,
+        barRadius:999
+      });
+
+      currentWaveSurfer.once('ready',function(){
+        if(!currentWaveSurfer)return;
+
+        if(row)row.classList.remove('loading');
+
+        currentWaveSurfer.setVolume(.85);
+        playCurrent();
+        updateTrackStates();
+      });
+
+      currentWaveSurfer.on('play',function(){
+        pauseAmbientForPreview();
+        updateTrackStates();
+      });
+
+      currentWaveSurfer.on('pause',function(){
+        if(previewSwitching)return;
+        closePreview();
+      });
+
+      currentWaveSurfer.on('finish',function(){
+        closePreview();
+      });
+
+      currentWaveSurfer.on('error',function(){
+        clearInterval(previewFade);
+
+        if(row)row.classList.remove('loading');
+
+        closePreview();
+      });
+
+      currentWaveSurfer.load(src);
+    });
   });
-
-  currentWaveSurfer.once('ready',function(){
-    if(!currentWaveSurfer)return;
-
-    if(row)row.classList.remove('loading');
-
-    currentWaveSurfer.setVolume(.85);
-    playCurrent();
-    updateTrackStates();
-  });
-
-  currentWaveSurfer.on('play',function(){
-    pauseAmbientForPreview();
-    updateTrackStates();
-  });
-
-  currentWaveSurfer.on('pause',function(){
-    if(previewSwitching)return;
-    closePreview();
-  });
-
-  currentWaveSurfer.on('finish',function(){
-    closePreview();
-  });
-
-  currentWaveSurfer.on('error',function(){
-    clearInterval(previewFade);
-
-    if(row)row.classList.remove('loading');
-
-    closePreview();
-  });
-
-  currentWaveSurfer.load(src);
 }
 
 function getCartItemData(cartItem){
@@ -837,6 +869,7 @@ function albumTrackRow(t){
   var info=document.createElement('div');
   var title=document.createElement('p');
   var metaLine=document.createElement('p');
+  var actions=document.createElement('div');
   var priceEl=document.createElement('p');
   var add=document.createElement('button');
   var expanded=document.createElement('div');
@@ -851,6 +884,8 @@ function albumTrackRow(t){
   item.setAttribute('data-track-id',t.id);
 
   main.className='album-track-main';
+  info.className='album-track-info';
+  actions.className='album-track-actions';
 
   title.className='album-track-title';
   title.textContent=(t.trackNumber?String(t.trackNumber).padStart(2,'0')+'. ':'')+t.title;
@@ -873,13 +908,13 @@ function albumTrackRow(t){
 
   expanded.className='album-track-expanded';
 
-  wave.className='track-wave';
+  wave.className='track-wave album-track-wave';
   waveform.className='track-waveform';
 
-  listen.className='track-listen';
+  listen.className='track-listen album-track-listen';
   listen.textContent='Choose your platform';
 
-  links.className='track-platforms';
+  links.className='track-platforms album-track-platforms';
 
   appendPlatform(links,'SoundCloud',t.soundcloud);
   appendPlatform(links,'Spotify',t.spotify);
@@ -890,33 +925,37 @@ function albumTrackRow(t){
 
   info.appendChild(title);
   info.appendChild(metaLine);
+
+  actions.appendChild(priceEl);
+  actions.appendChild(add);
+
   main.appendChild(info);
-  main.appendChild(priceEl);
-  main.appendChild(add);
+  main.appendChild(actions);
+
   wave.appendChild(waveform);
+
   expanded.appendChild(wave);
   expanded.appendChild(listen);
   expanded.appendChild(links);
+
   item.appendChild(main);
   item.appendChild(expanded);
 
   item.onclick=function(e){
-    var isButton=e.target.closest('button');
-
-    if(isButton)return;
+    if(e.target.closest('button')||e.target.closest('a')){
+      return;
+    }
 
     var isExpanded=item.classList.contains('active')&&currentPreviewTrackId===t.id;
 
     clearDeepLinkHighlight();
 
-    all('.album-track').forEach(function(trackRow){
-      if(trackRow!==item)trackRow.classList.remove('active','playing','loading');
-    });
-
     if(isExpanded){
       closePreview();
       return;
     }
+
+    closePreview();
 
     item.classList.add('active');
 
