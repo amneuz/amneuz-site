@@ -2045,10 +2045,13 @@ async function uploadMasterFile(file) {
     return;
   }
 
-  if (file.size > 50 * 1024 * 1024) {
-    setSaveStatus('Master file is too large. Current bucket limit is 50MB.', 'error');
-    return;
-  }
+  if (file.size > 150 * 1024 * 1024) {
+
+  setSaveStatus('Master file is too large. Current bucket limit is 150MB.', 'error');
+
+  return;
+
+}
 
   setLastActivity();
   setSaveStatus('Preparing secure master upload...', '');
