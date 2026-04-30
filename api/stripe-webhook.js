@@ -80,7 +80,7 @@ function formatAlbumTitle(album) {
 
 function mapTrack(track, purchaseType, parentAlbum) {
   return {
-    id: track.legacy_id || track.catalog_code || track.id,
+     id: track.catalog_code || track.legacy_id || track.id,
     uuid: track.id,
     catalogCode: track.catalog_code,
     title: formatTrackTitle(track),

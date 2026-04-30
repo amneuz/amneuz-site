@@ -170,8 +170,11 @@ async function getAlbumsByPriceIds(priceIds) {
 }
 
 function buildMetadata(selectedTracks, selectedAlbums) {
+
   const trackIds = selectedTracks.map(function(track) {
-    return track.legacy_id || track.catalog_code || track.id;
+
+    return track.catalog_code || track.legacy_id || track.id;
+
   });
 
   const catalogCodes = selectedTracks
