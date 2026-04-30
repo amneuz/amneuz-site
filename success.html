@@ -505,7 +505,10 @@
     const downloadModalCopy = document.getElementById('downloadModalCopy');
     const downloadCancel = document.getElementById('downloadCancel');
     const downloadContinue = document.getElementById('downloadContinue');
+    const DOWNLOAD_COOLDOWN_MS = 5000;
     let pendingDownload = null;
+    let downloadCooldownActive = false;
+    let downloadCooldownTimer = null;
 
     function escapeHtml(value) {
       return String(value || '')
@@ -542,28 +545,51 @@
       downloadModal.setAttribute('aria-hidden', 'true');
     }
 
+    function applyDownloadCooldownState(clickedButton) {
+      document.querySelectorAll('.download-btn').forEach(function(downloadButton) {
+        if (downloadButton.dataset.downloadExhausted === 'true') {
+          downloadButton.disabled = true;
+          downloadButton.textContent = 'Limit Reached';
+          return;
+        }
+
+        downloadButton.disabled = true;
+        downloadButton.textContent = downloadButton === clickedButton ? 'Preparing download...' : 'Please wait...';
+      });
+    }
+
+    function lockDownloadButtonsForCooldown(clickedButton) {
+      downloadCooldownActive = true;
+      applyDownloadCooldownState(clickedButton);
+
+      if (downloadCooldownTimer) {
+        clearTimeout(downloadCooldownTimer);
+      }
+
+      downloadCooldownTimer = setTimeout(function() {
+        downloadCooldownActive = false;
+        downloadCooldownTimer = null;
+        loadOrder();
+      }, DOWNLOAD_COOLDOWN_MS);
+    }
+
     function startDownload(track, button) {
-      if (button.dataset.downloading === 'true') {
+      if (downloadCooldownActive || button.dataset.downloading === 'true') {
         return;
       }
 
       button.dataset.downloading = 'true';
-      button.disabled = true;
-      button.textContent = 'Preparing download...';
+      lockDownloadButtonsForCooldown(button);
       window.location.href = track.downloadUrl;
 
       setTimeout(loadOrder, 2200);
-
-      setTimeout(function() {
-        if (button.isConnected && track.downloadsRemaining > 0) {
-          button.dataset.downloading = 'false';
-          button.disabled = false;
-          button.textContent = 'Download';
-        }
-      }, 5000);
     }
 
     function openDownloadModal(track, button) {
+      if (downloadCooldownActive) {
+        return;
+      }
+
       const attemptNumber = track.downloads + 1;
       const maxAttempts = track.maxDownloads;
       const isFinalAttempt = track.downloadsRemaining === 1;
@@ -645,9 +671,18 @@
 
           const button = article.querySelector('.download-btn');
 
+          if (button) {
+            button.dataset.downloadExhausted = isDisabled ? 'true' : 'false';
+
+            if (downloadCooldownActive && !isDisabled) {
+              button.disabled = true;
+              button.textContent = 'Please wait...';
+            }
+          }
+
           if (!isDisabled) {
             button.addEventListener('click', function() {
-              if (button.dataset.downloading === 'true') {
+              if (downloadCooldownActive || button.dataset.downloading === 'true') {
                 return;
               }
 
