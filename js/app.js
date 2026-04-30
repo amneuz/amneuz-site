@@ -373,7 +373,7 @@ function openTrackDeepLink(){
 }
 
 function updateTrackStates(){
-  all('.track').forEach(function(r){
+  all('.track,.album-track').forEach(function(r){
     var active=r.getAttribute('data-track-id')===currentPreviewTrackId;
     var playing=active&&currentWaveSurfer&&currentWaveSurfer.isPlaying();
     var b=r.querySelector('.track-play');
@@ -476,13 +476,13 @@ function togglePreview(t){
 }
 
 function openPreview(t){
-  var row=document.querySelector('.track[data-track-id="'+t.id+'"]');
+  var row=document.querySelector('.track[data-track-id="'+t.id+'"],.album-track[data-track-id="'+t.id+'"]');
   var w=row?row.querySelector('.track-waveform'):null;
   var src=t.preview||('assets/audio/'+t.id+'-preview.wav');
   var isMobile=window.matchMedia&&window.matchMedia('(max-width:560px)').matches;
   var waveHeight=isMobile?44:64;
 
-  all('.track').forEach(function(x){x.classList.remove('active','playing','loading')});
+  all('.track,.album-track').forEach(function(x){x.classList.remove('active','playing','loading')});
   all('.track-waveform').forEach(function(x){x.innerHTML=''});
 
   if(row)row.classList.add('active','loading');
@@ -824,6 +824,111 @@ function row(t){
   return r;
 }
 
+function albumTrackRow(t){
+  var item=document.createElement('div');
+  var main=document.createElement('div');
+  var info=document.createElement('div');
+  var title=document.createElement('p');
+  var metaLine=document.createElement('p');
+  var priceEl=document.createElement('p');
+  var add=document.createElement('button');
+  var expanded=document.createElement('div');
+  var wave=document.createElement('div');
+  var waveform=document.createElement('div');
+  var listen=document.createElement('p');
+  var links=document.createElement('div');
+  var releaseYear=String(t.release||'').match(/\d{4}/);
+  var added=isTrackInCart(t.id);
+
+  item.className='album-track';
+  item.setAttribute('data-track-id',t.id);
+
+  main.className='album-track-main';
+
+  title.className='album-track-title';
+  title.textContent=(t.trackNumber?String(t.trackNumber).padStart(2,'0')+'. ':'')+t.title;
+
+  metaLine.className='album-track-meta';
+  metaLine.textContent=[
+    t.genre,
+    t.bpm?String(t.bpm)+' BPM':'',
+    t.duration,
+    releaseYear?releaseYear[0]:''
+  ].filter(Boolean).join(' · ');
+
+  priceEl.className='album-track-price';
+  priceEl.textContent=money(price(t));
+
+  add.className='tbtn albumTrackAdd';
+  add.type='button';
+  add.textContent=added?'Added':'Add to Cart';
+  add.classList.toggle('added',added);
+
+  expanded.className='album-track-expanded';
+
+  wave.className='track-wave';
+  waveform.className='track-waveform';
+
+  listen.className='track-listen';
+  listen.textContent='Choose your platform';
+
+  links.className='track-platforms';
+
+  appendPlatform(links,'SoundCloud',t.soundcloud);
+  appendPlatform(links,'Spotify',t.spotify);
+  appendPlatform(links,'Apple Music',t.appleMusic);
+  appendPlatform(links,'Tidal',t.tidal);
+  appendPlatform(links,'YouTube',t.youtube);
+  appendPlatform(links,'Beatport',t.beatport);
+
+  info.appendChild(title);
+  info.appendChild(metaLine);
+  main.appendChild(info);
+  main.appendChild(priceEl);
+  main.appendChild(add);
+  wave.appendChild(waveform);
+  expanded.appendChild(wave);
+  expanded.appendChild(listen);
+  expanded.appendChild(links);
+  item.appendChild(main);
+  item.appendChild(expanded);
+
+  item.onclick=function(){
+    clearDeepLinkHighlight();
+    togglePreview(t);
+  };
+
+  expanded.onclick=function(e){
+    e.stopPropagation();
+  };
+
+  wave.onclick=function(e){
+    e.stopPropagation();
+
+    if(currentPreviewTrackId===t.id&&currentWaveSurfer&&!currentWaveSurfer.isPlaying()){
+      playCurrent();
+    }
+  };
+
+  add.onclick=function(e){
+    e.stopPropagation();
+    clearDeepLinkHighlight();
+
+    var key=cartKey('track',t.id);
+
+    if(cart.indexOf(key)===-1){
+      cart.push(key);
+      saveStoredCart();
+    }
+
+    renderCart();
+    add.textContent='Added';
+    add.classList.add('added');
+  };
+
+  return item;
+}
+
 function albumRow(album){
   var wrap=document.createElement('article');
   var isOpen=openAlbumIds.indexOf(album.id)>-1;
@@ -899,7 +1004,7 @@ function albumRow(album){
   list.style.display=isOpen?'grid':'none';
 
   if(isOpen){
-    album.tracks.map(function(t){return row(t)}).forEach(function(trackRow){
+    album.tracks.map(function(t){return albumTrackRow(t)}).forEach(function(trackRow){
       list.appendChild(trackRow);
     });
   }

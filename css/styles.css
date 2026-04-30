@@ -723,13 +723,87 @@
 
 }
 
-.track-wave{
+.album-track{
+
+  padding:14px 0;
+
+  border-top:1px solid rgba(255,255,255,.09);
+
+  cursor:pointer;
+
+}
+
+.album-track:first-child{
+
+  border-top:0;
+
+}
+
+.album-track-main{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  gap:18px;
+
+  min-width:0;
+
+}
+
+.album-track-main > div{
+
+  min-width:0;
+
+}
+
+.album-track-main .album-track-price{
+
+  margin-left:auto;
+
+}
+
+.album-track-main .albumTrackAdd{
+
+  flex:0 0 auto;
+
+  padding:9px 12px 8px;
+
+  font-size:.52rem;
+
+}
+
+.album-track-expanded{
+
+  display:none;
+
+  margin-top:12px;
+
+}
+
+.album-track.active .album-track-expanded{
+
+  display:block;
+
+}
+
+.album-track-expanded .track-wave{
+
+  display:block;
 
   overflow:hidden;
 
 }
 
-.track-wave canvas{
+.album-track-expanded .track-waveform{
+
+  height:48px;
+
+}
+
+.album-track-expanded .track-wave canvas{
 
   max-width:100%;
 
