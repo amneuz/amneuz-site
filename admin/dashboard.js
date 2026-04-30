@@ -450,6 +450,84 @@ function ensureAdminStyles() {
       background: rgba(255,255,255,.16);
     }
 
+    .generate-preview-btn {
+      border-color: rgba(120,160,255,.34);
+      background: rgba(77,108,255,.12);
+      color: rgba(226,232,255,.94);
+    }
+
+    .generate-preview-btn:hover {
+      background: rgba(77,108,255,.22);
+    }
+
+    .generate-preview-btn:disabled {
+      cursor: not-allowed;
+      border-color: rgba(255,255,255,.12);
+      background: rgba(255,255,255,.035);
+      color: rgba(255,255,255,.32);
+    }
+
+    .generate-preview-help {
+      margin: 8px 0 0;
+      color: rgba(255,255,255,.5);
+      font-size: .78rem;
+      line-height: 1.45;
+    }
+
+    .preview-builder-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(0,0,0,.68);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .preview-builder-overlay.open {
+      display: flex;
+    }
+
+    .preview-builder-panel {
+      width: min(94vw, 520px);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 26px;
+      background: rgba(7,7,7,.94);
+      box-shadow: 0 24px 90px rgba(0,0,0,.55);
+      padding: 26px;
+    }
+
+    .preview-builder-panel h2 {
+      margin: 0;
+      color: #fff;
+      font-size: 1.65rem;
+      letter-spacing: -.03em;
+    }
+
+    .preview-builder-track {
+      margin: 12px 0 0;
+      color: rgba(226,232,255,.9);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .preview-builder-copy {
+      margin: 16px 0 0;
+      color: rgba(255,255,255,.64);
+      line-height: 1.55;
+    }
+
+    .preview-builder-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 24px;
+    }
+
     .new-track-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -546,10 +624,137 @@ function ensureAdminStyles() {
       .new-track-grid {
         grid-template-columns: 1fr;
       }
+
+      .preview-builder-panel {
+        padding: 22px;
+        border-radius: 22px;
+      }
+
+      .preview-builder-actions {
+        justify-content: stretch;
+      }
+
+      .preview-builder-actions .admin-secondary-btn {
+        width: 100%;
+      }
     }
   `;
 
   document.head.appendChild(style);
+}
+
+function ensurePreviewBuilderOverlay() {
+  ensureAdminStyles();
+
+  let overlay = document.getElementById('previewBuilderOverlay');
+
+  if (overlay) {
+    return overlay;
+  }
+
+  overlay = document.createElement('div');
+  overlay.id = 'previewBuilderOverlay';
+  overlay.className = 'preview-builder-overlay';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = `
+    <div class="preview-builder-panel" role="dialog" aria-modal="true" aria-labelledby="previewBuilderTitle">
+      <h2 id="previewBuilderTitle">Preview Builder</h2>
+      <p id="previewBuilderTrack" class="preview-builder-track"></p>
+      <p class="preview-builder-copy">Waveform and 30-second selection will be added in the next step.</p>
+      <div class="preview-builder-actions">
+        <button id="previewBuilderClose" class="admin-secondary-btn" type="button">Cancel / Close</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(event) {
+    if (event.target === overlay) {
+      closePreviewBuilder();
+    }
+  });
+
+  const closeBtn = document.getElementById('previewBuilderClose');
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closePreviewBuilder);
+  }
+
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && overlay.classList.contains('open')) {
+      closePreviewBuilder();
+    }
+  });
+
+  return overlay;
+}
+
+function openPreviewBuilder(track) {
+  if (!track || !track.masterPath) {
+    return;
+  }
+
+  const overlay = ensurePreviewBuilderOverlay();
+  const trackName = document.getElementById('previewBuilderTrack');
+
+  if (trackName) {
+    trackName.textContent = track.displayTitle || track.title || 'Untitled track';
+  }
+
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closePreviewBuilder() {
+  const overlay = document.getElementById('previewBuilderOverlay');
+
+  if (!overlay) {
+    return;
+  }
+
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+
+  const trackName = document.getElementById('previewBuilderTrack');
+
+  if (trackName) {
+    trackName.textContent = '';
+  }
+}
+
+function updateGeneratePreviewState(track) {
+  const generatePreviewBtn = document.getElementById('generatePreviewBtn');
+  const generatePreviewHelp = document.getElementById('generatePreviewHelp');
+  const hasMaster = !!(track && track.masterPath);
+
+  if (generatePreviewBtn) {
+    generatePreviewBtn.disabled = !hasMaster;
+  }
+
+  if (generatePreviewHelp) {
+    generatePreviewHelp.textContent = hasMaster
+      ? 'Generate a 30-second preview from the uploaded master.'
+      : 'Upload a master first to generate a preview.';
+  }
+}
+
+function bindGeneratePreview() {
+  const generatePreviewBtn = document.getElementById('generatePreviewBtn');
+
+  if (!generatePreviewBtn) {
+    return;
+  }
+
+  updateGeneratePreviewState(activeTrackForSave);
+
+  generatePreviewBtn.addEventListener('click', function() {
+    if (generatePreviewBtn.disabled) {
+      return;
+    }
+
+    openPreviewBuilder(activeTrackForSave);
+  });
 }
 
 function ensureCatalogTabs() {
@@ -1214,6 +1419,7 @@ async function openTrackModal(trackId) {
 
     const track = data.track;
     activeTrackForSave = track;
+    const hasMaster = !!track.masterPath;
 
     trackModalTitle.textContent = track.displayTitle || track.title || 'Track details';
 
@@ -1230,6 +1436,9 @@ async function openTrackModal(trackId) {
 
           <button id="uploadMasterBtn" class="upload-cover-btn upload-master-btn" type="button">Upload Master</button>
           <input id="masterFileInput" type="file" accept="audio/wav,audio/x-wav,audio/wave,audio/flac,audio/aiff,audio/x-aiff,application/octet-stream,.wav,.flac,.aif,.aiff" style="display:none;">
+
+          <button id="generatePreviewBtn" class="upload-cover-btn generate-preview-btn" type="button" ${hasMaster ? '' : 'disabled'}>Generate Preview</button>
+          <p id="generatePreviewHelp" class="generate-preview-help">${hasMaster ? 'Generate a 30-second preview from the uploaded master.' : 'Upload a master first to generate a preview.'}</p>
         </div>
 
         <div class="track-detail-fields">
@@ -1299,6 +1508,7 @@ async function openTrackModal(trackId) {
     bindCoverUpload();
     bindPreviewUpload();
     bindMasterUpload();
+    bindGeneratePreview();
   } catch (err) {
     trackModalTitle.textContent = 'Unable to load track';
     trackModalBody.innerHTML = `<p>${escapeHtml(err.message || 'Unable to load track')}</p>`;
@@ -2135,6 +2345,7 @@ async function uploadMasterFile(file) {
 
     activeTrackForSave.masterPath = finalizeData.masterPath;
     activeTrackForSave.filename = finalizeData.filename;
+    updateGeneratePreviewState(activeTrackForSave);
 
     setSaveStatus('Master uploaded.', 'ok');
     setFooterButtonToClose();
