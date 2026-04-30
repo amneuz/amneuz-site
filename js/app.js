@@ -893,22 +893,22 @@ function albumTrackRow(t){
   item.appendChild(main);
   item.appendChild(expanded);
 
-  item.onclick=function(e){
-    if(e.target.closest('button')){
-      return;
-    }
+  item.onclick=function(){
+    var isExpanded=item.classList.contains('active')&&currentPreviewTrackId===t.id;
 
     clearDeepLinkHighlight();
+
     all('.album-track').forEach(function(trackRow){
       if(trackRow!==item)trackRow.classList.remove('active','playing','loading');
     });
 
-    if(item.classList.contains('active')&&currentPreviewTrackId===t.id){
+    if(isExpanded){
       closePreview();
       return;
     }
 
-    togglePreview(t);
+    item.classList.add('active');
+    openPreview(t);
   };
 
   wave.onclick=function(e){
@@ -919,8 +919,7 @@ function albumTrackRow(t){
     }
   };
 
-  add.onclick=function(e){
-    e.stopPropagation();
+  add.onclick=function(){
     clearDeepLinkHighlight();
 
     var key=cartKey('track',t.id);
