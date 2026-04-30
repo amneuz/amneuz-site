@@ -1284,7 +1284,7 @@ function renderNextRelease(){
   cover.alt=item.title;
 
   badge.className='next-release-badge';
-  badge.textContent='New Release';
+  badge.textContent=state.isFuture?'Next Release':'New Release';
 
   title.className='next-release-title';
   title.textContent=item.title;
