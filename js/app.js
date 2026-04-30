@@ -1286,7 +1286,6 @@ function renderNextRelease(){
   var waveform=document.createElement('div');
   var listen=document.createElement('p');
   var platforms=document.createElement('div');
-  var lower=document.createElement('div');
   var stream=document.createElement('div');
   var buy=document.createElement('div');
   var priceEl=document.createElement('p');
@@ -1294,7 +1293,7 @@ function renderNextRelease(){
   var add=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
   var state=releaseState(releaseDate);
-  var nextReleaseWaveHeight=window.matchMedia&&window.matchMedia('(max-width:760px)').matches?54:78;
+  var nextReleaseWaveHeight=window.matchMedia&&window.matchMedia('(max-width:760px)').matches?54:72;
 
   card.className='track next-release-card';
   card.setAttribute('data-track-id',previewTrack.id);
@@ -1345,7 +1344,6 @@ function renderNextRelease(){
   listen.className='track-listen next-release-listen';
   listen.textContent='Choose your platform';
   platforms.className='track-platforms next-release-platforms';
-  lower.className='next-release-lower';
   stream.className='next-release-stream';
 
   if(state.isReleased){
@@ -1392,25 +1390,24 @@ function renderNextRelease(){
     : 'Available Soon';
 
   wave.appendChild(waveform);
-  preview.appendChild(wave);
   preview.appendChild(play);
+  preview.appendChild(wave);
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
   stream.appendChild(listen);
   stream.appendChild(platforms);
-  lower.appendChild(stream);
-  lower.appendChild(buy);
   content.appendChild(badge);
   content.appendChild(title);
   content.appendChild(metaLine);
-  content.appendChild(release);
   content.appendChild(preview);
+  content.appendChild(release);
   if(state.isFuture)content.appendChild(countdown);
+  content.appendChild(stream);
   media.appendChild(cover);
   card.appendChild(content);
   card.appendChild(media);
-  card.appendChild(lower);
+  card.appendChild(buy);
   c.appendChild(card);
 
   openPreview(previewTrack,{autoplay:false,persistent:true,waveHeight:nextReleaseWaveHeight});
