@@ -1307,11 +1307,11 @@
 }
 
 .next-release-preview{
-  grid-column:1/-1;
+  width:100%;
   display:grid;
   gap:14px;
   justify-items:start;
-  margin-top:12px;
+  margin-top:22px;
 }
 
 .next-release-play{
@@ -1329,12 +1329,14 @@
 .next-release-card .next-release-wave{
   display:block;
   width:100%;
-  margin-top:14px;
+  margin:0;
+  padding:16px 0 4px;
+  border-top:1px solid rgba(255,255,255,.075);
   overflow:hidden;
 }
 
 .next-release-card .next-release-wave .track-waveform{
-  height:78px;
+  height:82px;
 }
 
 .next-release-wave canvas{
@@ -1445,8 +1447,8 @@
   }
 
   .next-release-preview{
-    gap:10px;
-    margin-top:4px;
+    margin-top:18px;
+    gap:12px;
   }
 
   .next-release-card .next-release-wave .track-waveform{

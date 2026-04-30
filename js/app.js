@@ -1405,11 +1405,11 @@ function renderNextRelease(){
   content.appendChild(title);
   content.appendChild(metaLine);
   content.appendChild(release);
+  content.appendChild(preview);
+  if(state.isFuture)content.appendChild(countdown);
   media.appendChild(cover);
   card.appendChild(content);
   card.appendChild(media);
-  card.appendChild(preview);
-  if(state.isFuture)card.appendChild(countdown);
   card.appendChild(lower);
   c.appendChild(card);
 
