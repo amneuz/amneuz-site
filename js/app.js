@@ -908,15 +908,25 @@ function albumRow(album){
       item.className='album-track-item track';
       item.setAttribute('data-track-id',t.id);
 
-      item.innerHTML=
-        '<div class="album-track-main">'+
-          '<p class="album-track-title"></p>'+
-          '<p class="album-track-meta"></p>'+
-          '<div class="track-wave album-track-wave">'+
-            '<div class="track-waveform"></div>'+
-          '</div>'+
-          '<div class="album-track-platforms"></div>'+
-        '</div>'+
+     item.innerHTML=
+
+  '<div class="album-track-main">'+
+
+    '<p class="album-track-title"></p>'+
+
+    '<p class="album-track-meta"></p>'+
+
+    '<div class="track-wave album-track-wave">'+
+
+      '<div class="track-waveform"></div>'+
+
+    '</div>'+
+
+    '<p class="track-listen album-track-listen">Choose your platform</p>'+
+
+    '<div class="album-track-platforms"></div>'+
+
+  '</div>'+
         '<div class="album-track-actions">'+
           '<span class="album-track-price"></span>'+
           '<button class="admin-mini-btn albumTrackAdd" type="button"></button>'+
