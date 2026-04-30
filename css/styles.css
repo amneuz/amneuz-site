@@ -1131,3 +1131,65 @@
     font-size: 1.04rem;
   }
 }
+
+.album-release.track {
+
+  background: rgba(7,7,7,.68);
+
+  border-color: rgba(255,255,255,.12);
+
+  box-shadow: 0 18px 50px rgba(0,0,0,.18);
+
+}
+
+.album-release.track:hover {
+
+  background: rgba(255,255,255,.055);
+
+  border-color: rgba(255,255,255,.24);
+
+  box-shadow: 0 24px 70px rgba(0,0,0,.28);
+
+  transform: translateY(-2px);
+
+}
+
+.album-release.track.active,
+
+.album-release.track:focus-within {
+
+  background: rgba(255,255,255,.07);
+
+  border-color: rgba(255,255,255,.34);
+
+  box-shadow: 0 24px 70px rgba(0,0,0,.28);
+
+}
+
+@media(max-width:560px) {
+
+  .album-release.track {
+
+    background: rgba(7,7,7,.72);
+
+    border-color: rgba(255,255,255,.12);
+
+  }
+
+  .album-release.track:hover {
+
+    transform: none;
+
+  }
+
+  .album-release.track.active,
+
+  .album-release.track:focus-within {
+
+    background: rgba(255,255,255,.07);
+
+    border-color: rgba(255,255,255,.28);
+
+  }
+
+}
