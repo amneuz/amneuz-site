@@ -2261,6 +2261,7 @@ async function openTrackModal(trackId) {
           ${editableInput('BPM', 'bpmInput', track.bpm, 'text')}
           ${editableInput('Duration', 'durationLabelInput', track.durationLabel, 'text')}
           ${editableInput('Release Year', 'releaseYearInput', track.releaseYear, 'number')}
+          ${editableInput('Release Date', 'releaseDateInput', track.releaseDate, 'date')}
           ${editableInput('Price MXN', 'priceMxnInput', track.priceMxn, 'number')}
           ${editableInput('Sort Order', 'sortOrderInput', track.sortOrder, 'number')}
 
@@ -2597,6 +2598,7 @@ async function saveTrackSafeChanges() {
     bpm: valueOf('bpmInput', track.bpm),
     durationLabel: valueOf('durationLabelInput', track.durationLabel),
     releaseYear: valueOf('releaseYearInput', track.releaseYear),
+    releaseDate: valueOf('releaseDateInput', track.releaseDate),
     priceMxn: valueOf('priceMxnInput', track.priceMxn),
     sortOrder: valueOf('sortOrderInput', track.sortOrder),
     isFeatured: checkedOf('isFeaturedInput', track.isFeatured),

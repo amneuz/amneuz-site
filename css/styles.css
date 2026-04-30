@@ -1203,15 +1203,16 @@
   padding:24px;
   border:1px solid rgba(118,160,255,.22);
   border-radius:28px;
-  background:linear-gradient(135deg,rgba(8,10,16,.9),rgba(10,16,14,.82));
-  box-shadow:0 28px 90px rgba(0,0,0,.34),0 0 42px rgba(76,118,255,.12);
+  background:rgba(8,10,16,.86);
+  box-shadow:0 28px 90px rgba(0,0,0,.34),0 0 36px rgba(76,118,255,.1);
   cursor:default;
 }
 
 .next-release-card:hover{
   transform:none;
-  border-color:rgba(108,255,166,.28);
-  background:linear-gradient(135deg,rgba(10,12,19,.94),rgba(10,20,16,.86));
+  border-color:rgba(160,185,255,.3);
+  background:rgba(12,15,24,.9);
+  box-shadow:0 30px 90px rgba(0,0,0,.36),0 0 34px rgba(120,160,255,.12);
 }
 
 .next-release-content{
@@ -1228,7 +1229,7 @@
   aspect-ratio:1;
   object-fit:cover;
   border-radius:22px;
-  box-shadow:0 28px 70px rgba(0,0,0,.38),0 0 35px rgba(85,255,140,.1);
+  box-shadow:0 28px 70px rgba(0,0,0,.38),0 0 30px rgba(120,160,255,.08);
 }
 
 .next-release-badge{
@@ -1247,11 +1248,12 @@
 
 .next-release-title{
   margin:0;
+  max-width:720px;
   color:#fff;
-  font-size:clamp(2.2rem,5vw,5rem);
+  font-size:clamp(1.75rem,4vw,3.15rem);
   font-weight:600;
-  letter-spacing:-.045em;
-  line-height:.95;
+  letter-spacing:-.035em;
+  line-height:1.05;
 }
 
 .next-release-meta,
@@ -1334,6 +1336,15 @@
   margin-top:8px;
 }
 
+.next-release-platform-empty{
+  margin:0;
+  color:rgba(244,244,244,.55);
+  font-size:.68rem;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
 .next-release-buy{
   display:flex;
   flex-wrap:wrap;
@@ -1346,31 +1357,14 @@
   margin:0;
 }
 
-.next-release-benefits{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  margin-top:18px;
-}
-
-.next-release-benefits span{
-  border:1px solid rgba(103,174,135,.22);
-  border-radius:999px;
-  background:rgba(85,255,140,.07);
-  color:rgba(205,255,222,.84);
-  padding:8px 10px 7px;
-  font-size:.54rem;
-  font-weight:800;
-  letter-spacing:.11em;
-  text-transform:uppercase;
-}
-
 @media(max-width:760px){
   .next-release-card,
   .next-release-card.active{
     grid-template-columns:1fr;
-    gap:20px;
-    padding:16px;
+    gap:14px;
+    max-width:430px;
+    margin-inline:auto;
+    padding:14px;
     border-radius:24px;
   }
 
@@ -1383,7 +1377,14 @@
   }
 
   .next-release-title{
-    font-size:clamp(2rem,13vw,3.5rem);
+    font-size:clamp(1.55rem,8vw,2.35rem);
+    line-height:1.08;
+  }
+
+  .next-release-cover{
+    width:min(100%,320px);
+    max-height:46svh;
+    margin-inline:auto;
   }
 
   .next-release-countdown{

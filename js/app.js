@@ -26,7 +26,7 @@ function id(x){return document.getElementById(x)}
 function all(s){return Array.prototype.slice.call(document.querySelectorAll(s))}
 function price(t){return Number(t.priceMxn||displayPrices[t.id]||0)}
 function money(n){return '$'+Number(n||0).toFixed(0)+' MXN'}
-function activeCat(){var a=document.querySelector('.tab.active');return a?a.getAttribute('data-cat'):'next-release'}
+function activeCat(){var a=document.querySelector('.tab.active');return a?a.getAttribute('data-cat'):'remixes'}
 function getTrackParam(){return new URLSearchParams(window.location.search).get('track')}
 function slugify(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
 
@@ -219,6 +219,7 @@ function setTracksFromData(data){
 
   normalizeCart();
   saveStoredCart();
+  syncNextReleaseTab();
   renderCatalog(activeCat());
   renderCart();
   openTrackDeepLink();
@@ -1193,16 +1194,44 @@ function nextReleaseCandidate(){
   return null;
 }
 
+function hasNextRelease(){
+  return !!nextReleaseCandidate();
+}
+
+function syncNextReleaseTab(){
+  var nextTab=document.querySelector('.tab[data-cat="next-release"]');
+  var remixTab=document.querySelector('.tab[data-cat="remixes"]');
+  var exists=hasNextRelease();
+
+  if(!nextTab)return;
+
+  nextTab.hidden=!exists;
+
+  if(exists){
+    if(!document.querySelector('.tab.active')){
+      nextTab.classList.add('active');
+    }
+
+    return;
+  }
+
+  if(nextTab.classList.contains('active')){
+    nextTab.classList.remove('active');
+    if(remixTab)remixTab.classList.add('active');
+  }
+
+  if(!document.querySelector('.tab.active')&&remixTab){
+    remixTab.classList.add('active');
+  }
+}
+
 function renderNextRelease(){
   var c=id('catalog');
   var candidate=nextReleaseCandidate();
 
   if(!c)return;
 
-  if(!candidate){
-    c.innerHTML='<p class="cart-empty">No upcoming release announced yet.</p>';
-    return;
-  }
+  if(!candidate)return;
 
   var item=candidate.item;
   var previewTrack=candidate.previewTrack||item;
@@ -1225,8 +1254,8 @@ function renderNextRelease(){
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
   var add=document.createElement('button');
-  var benefits=document.createElement('div');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
+  var hasReleaseDate=!!(releaseDate&&!isNaN(new Date(releaseDate).getTime()));
 
   card.className='track next-release-card';
   card.setAttribute('data-track-id',previewTrack.id);
@@ -1249,21 +1278,23 @@ function renderNextRelease(){
     : [item.genre,item.bpm?String(item.bpm)+' BPM':'',item.key].filter(Boolean).join(' · ');
 
   release.className='next-release-date';
-  release.textContent='Available on '+formatReleaseDate(releaseDate);
+  release.textContent=hasReleaseDate?'Available on '+formatReleaseDate(releaseDate):'Release date coming soon';
 
-  countdown.className='next-release-countdown';
-  ['days','hours','minutes','seconds'].forEach(function(key){
-    var unit=document.createElement('span');
-    var number=document.createElement('strong');
-    var label=document.createElement('small');
+  if(hasReleaseDate){
+    countdown.className='next-release-countdown';
+    ['days','hours','minutes','seconds'].forEach(function(key){
+      var unit=document.createElement('span');
+      var number=document.createElement('strong');
+      var label=document.createElement('small');
 
-    number.setAttribute('data-count',key);
-    number.textContent='00';
-    label.textContent=key;
-    unit.appendChild(number);
-    unit.appendChild(label);
-    countdown.appendChild(unit);
-  });
+      number.setAttribute('data-count',key);
+      number.textContent='00';
+      label.textContent=key;
+      unit.appendChild(number);
+      unit.appendChild(label);
+      countdown.appendChild(unit);
+    });
+  }
 
   preview.className='next-release-preview';
   play.className='next-release-play';
@@ -1283,6 +1314,14 @@ function renderNextRelease(){
   appendPlatform(platforms,'YouTube',item.youtube);
   appendPlatform(platforms,'Beatport',item.beatport);
 
+  if(!platforms.children.length){
+    var platformEmpty=document.createElement('p');
+
+    platformEmpty.className='next-release-platform-empty';
+    platformEmpty.textContent='Streaming links available on release day';
+    platforms.appendChild(platformEmpty);
+  }
+
   buy.className='next-release-buy';
   priceEl.className='track-price next-release-price';
   priceEl.textContent=money(price(item));
@@ -1291,14 +1330,6 @@ function renderNextRelease(){
   add.className='tbtn next-release-add';
   add.type='button';
   add.textContent=candidate.type==='album'?(isAlbumInCart(item.id)?'Album Added':'Add Album'):(isTrackInCart(item.id)?'Added':'Add to Cart');
-
-  benefits.className='next-release-benefits';
-  ['Secure Payment','Instant Download','High Quality'].forEach(function(text){
-    var benefit=document.createElement('span');
-
-    benefit.textContent=text;
-    benefits.appendChild(benefit);
-  });
 
   wave.appendChild(waveform);
   preview.appendChild(play);
@@ -1310,21 +1341,22 @@ function renderNextRelease(){
   content.appendChild(title);
   content.appendChild(metaLine);
   content.appendChild(release);
-  content.appendChild(countdown);
+  if(hasReleaseDate)content.appendChild(countdown);
   content.appendChild(preview);
   content.appendChild(listen);
   content.appendChild(platforms);
   content.appendChild(buy);
-  content.appendChild(benefits);
   media.appendChild(cover);
   card.appendChild(content);
   card.appendChild(media);
   c.appendChild(card);
 
-  updateCountdown(countdown,releaseDate);
-  nextReleaseTimer=setInterval(function(){
+  if(hasReleaseDate){
     updateCountdown(countdown,releaseDate);
-  },1000);
+    nextReleaseTimer=setInterval(function(){
+      updateCountdown(countdown,releaseDate);
+    },1000);
+  }
 
   play.onclick=function(e){
     e.stopPropagation();
@@ -1364,6 +1396,12 @@ function renderCatalog(cat){
   c.innerHTML='';
 
   if(cat==='next-release'){
+    if(!hasNextRelease()){
+      syncNextReleaseTab();
+      renderCatalog('remixes');
+      return;
+    }
+
     renderNextRelease();
     updateTrackStates();
     return;
