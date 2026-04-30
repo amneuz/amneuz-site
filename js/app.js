@@ -1180,6 +1180,21 @@ function updateCountdown(box,releaseDate){
   });
 }
 
+function releaseState(releaseDate){
+  var date=releaseDate?new Date(releaseDate):null;
+
+  if(!date||isNaN(date.getTime())){
+    return {hasDate:false,isReleased:false,isFuture:false,date:null};
+  }
+
+  return {
+    hasDate:true,
+    isReleased:Date.now()>=date.getTime(),
+    isFuture:Date.now()<date.getTime(),
+    date:date
+  };
+}
+
 function nextReleaseCandidate(){
   var latestTracks=tracks.filter(function(t){return t.isLatestRelease});
   var latestAlbums=albums.filter(function(a){return a.isLatestRelease});
@@ -1255,7 +1270,7 @@ function renderNextRelease(){
   var quality=document.createElement('p');
   var add=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
-  var hasReleaseDate=!!(releaseDate&&!isNaN(new Date(releaseDate).getTime()));
+  var state=releaseState(releaseDate);
 
   card.className='track next-release-card';
   card.setAttribute('data-track-id',previewTrack.id);
@@ -1278,9 +1293,9 @@ function renderNextRelease(){
     : [item.genre,item.bpm?String(item.bpm)+' BPM':'',item.key].filter(Boolean).join(' · ');
 
   release.className='next-release-date';
-  release.textContent=hasReleaseDate?'Available on '+formatReleaseDate(releaseDate):'Release date coming soon';
+  release.textContent=state.hasDate?(state.isReleased?'Available now':'Available on '+formatReleaseDate(releaseDate)):'Release date coming soon';
 
-  if(hasReleaseDate){
+  if(state.isFuture){
     countdown.className='next-release-countdown';
     ['days','hours','minutes','seconds'].forEach(function(key){
       var unit=document.createElement('span');
@@ -1307,18 +1322,20 @@ function renderNextRelease(){
   listen.textContent='Choose your platform';
   platforms.className='track-platforms next-release-platforms';
 
-  appendPlatform(platforms,'SoundCloud',item.soundcloud);
-  appendPlatform(platforms,'Spotify',item.spotify);
-  appendPlatform(platforms,'Apple Music',item.appleMusic);
-  appendPlatform(platforms,'Tidal',item.tidal);
-  appendPlatform(platforms,'YouTube',item.youtube);
-  appendPlatform(platforms,'Beatport',item.beatport);
+  if(state.isReleased){
+    appendPlatform(platforms,'SoundCloud',item.soundcloud);
+    appendPlatform(platforms,'Spotify',item.spotify);
+    appendPlatform(platforms,'Apple Music',item.appleMusic);
+    appendPlatform(platforms,'Tidal',item.tidal);
+    appendPlatform(platforms,'YouTube',item.youtube);
+    appendPlatform(platforms,'Beatport',item.beatport);
+  }
 
   if(!platforms.children.length){
     var platformEmpty=document.createElement('p');
 
     platformEmpty.className='next-release-platform-empty';
-    platformEmpty.textContent='Streaming links available on release day';
+    platformEmpty.textContent=state.isReleased?'Streaming links coming soon':'Streaming links available on release day';
     platforms.appendChild(platformEmpty);
   }
 
@@ -1329,7 +1346,10 @@ function renderNextRelease(){
   quality.textContent='High-quality WAV';
   add.className='tbtn next-release-add';
   add.type='button';
-  add.textContent=candidate.type==='album'?(isAlbumInCart(item.id)?'Album Added':'Add Album'):(isTrackInCart(item.id)?'Added':'Add to Cart');
+  add.disabled=!state.isReleased;
+  add.textContent=state.isReleased
+    ? (candidate.type==='album'?(isAlbumInCart(item.id)?'Album Added':'Add Album'):(isTrackInCart(item.id)?'Added':'Add to Cart'))
+    : 'Available Soon';
 
   wave.appendChild(waveform);
   preview.appendChild(play);
@@ -1341,17 +1361,17 @@ function renderNextRelease(){
   content.appendChild(title);
   content.appendChild(metaLine);
   content.appendChild(release);
-  if(hasReleaseDate)content.appendChild(countdown);
-  content.appendChild(preview);
-  content.appendChild(listen);
-  content.appendChild(platforms);
-  content.appendChild(buy);
+  if(state.isFuture)content.appendChild(countdown);
   media.appendChild(cover);
   card.appendChild(content);
   card.appendChild(media);
+  card.appendChild(preview);
+  card.appendChild(listen);
+  card.appendChild(platforms);
+  card.appendChild(buy);
   c.appendChild(card);
 
-  if(hasReleaseDate){
+  if(state.isFuture){
     updateCountdown(countdown,releaseDate);
     nextReleaseTimer=setInterval(function(){
       updateCountdown(countdown,releaseDate);
@@ -1370,6 +1390,8 @@ function renderNextRelease(){
 
   add.onclick=function(e){
     e.stopPropagation();
+
+    if(!state.isReleased)return;
 
     var key=cartKey(candidate.type,item.id);
 
