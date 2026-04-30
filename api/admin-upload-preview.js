@@ -30,6 +30,26 @@ function cleanBase64(value) {
   return String(value || '').replace(/^data:[^;]+;base64,/, '').trim();
 }
 
+function cleanOptionalString(value, maxLength) {
+  const cleaned = String(value || '').trim();
+
+  if (!cleaned) {
+    return '';
+  }
+
+  return cleaned.slice(0, maxLength);
+}
+
+function cleanOptionalNumber(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    return null;
+  }
+
+  return Math.round(number * 1000) / 1000;
+}
+
 function getPublicUrl(path) {
   const { data } = supabaseAdmin
     .storage
@@ -63,7 +83,7 @@ function safeName(value) {
     .slice(0, 80) || 'track';
 }
 
-async function writeAudit(admin, req, track, uploadedPath, publicUrl) {
+async function writeAudit(admin, req, track, uploadedPath, publicUrl, uploadMetadata) {
   try {
     await supabaseAdmin
       .from('admin_audit_logs')
@@ -82,7 +102,12 @@ async function writeAudit(admin, req, track, uploadedPath, publicUrl) {
           catalog_code: track.catalog_code,
           title: track.title,
           uploaded_path: uploadedPath,
-          public_url: publicUrl
+          public_url: publicUrl,
+          source: uploadMetadata.source || null,
+          preview_start_seconds: uploadMetadata.previewStartSeconds,
+          preview_duration_seconds: uploadMetadata.previewDurationSeconds,
+          mime_type: uploadMetadata.mimeType,
+          file_size: uploadMetadata.fileSize
         }
       });
   } catch (err) {
@@ -113,6 +138,13 @@ module.exports = async function handler(req, res) {
   const fileName = String(body.fileName || '').trim();
   const mimeType = String(body.mimeType || '').trim().toLowerCase();
   const fileBase64 = cleanBase64(body.fileBase64);
+  const uploadMetadata = {
+    source: cleanOptionalString(body.source, 80),
+    previewStartSeconds: cleanOptionalNumber(body.previewStartSeconds),
+    previewDurationSeconds: cleanOptionalNumber(body.previewDurationSeconds),
+    mimeType,
+    fileSize: 0
+  };
 
   if (!trackId || trackId.length > 80) {
     return res.status(400).json({ error: 'Invalid track id' });
@@ -137,6 +169,8 @@ module.exports = async function handler(req, res) {
   if (!fileBuffer.length || fileBuffer.length > MAX_FILE_SIZE_BYTES) {
     return res.status(400).json({ error: 'Preview file is too large. Max 25MB.' });
   }
+
+  uploadMetadata.fileSize = fileBuffer.length;
 
   try {
     const track = await getTrack(trackId);
@@ -183,7 +217,7 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Unable to update track preview' });
     }
 
-    await writeAudit(admin, req, track, uploadedPath, publicUrl);
+    await writeAudit(admin, req, track, uploadedPath, publicUrl, uploadMetadata);
 
     return res.status(200).json({
       ok: true,

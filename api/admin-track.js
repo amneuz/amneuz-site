@@ -561,6 +561,16 @@ async function verifyMasterObjectExists(path) {
   });
 }
 
+function validateMasterPath(path) {
+  const cleanPath = String(path || '').trim();
+
+  if (!cleanPath || cleanPath.length > 500 || cleanPath.startsWith('/') || cleanPath.indexOf('..') > -1) {
+    return '';
+  }
+
+  return cleanPath;
+}
+
 async function finalizeMasterUpload(admin, req, res, id) {
   let body;
 
@@ -655,6 +665,46 @@ async function finalizeMasterUpload(admin, req, res, id) {
     masterPath: data.master_path,
     filename: data.filename,
     track: mapTrack(data)
+  });
+}
+
+async function createMasterDownload(admin, req, res, id) {
+  const track = await getTrackById(id);
+
+  if (!track) {
+    return res.status(404).json({ error: 'Track not found' });
+  }
+
+  const masterPath = validateMasterPath(track.master_path);
+
+  if (!masterPath) {
+    return res.status(400).json({ error: 'Master not available' });
+  }
+
+  const expiresIn = 120;
+  const { data, error } = await supabaseAdmin
+    .storage
+    .from(MASTER_BUCKET)
+    .createSignedUrl(masterPath, expiresIn);
+
+  if (error || !data || !data.signedUrl) {
+    console.error('Create signed master download URL failed:', error && (error.message || error));
+    return res.status(500).json({ error: 'Unable to create master access' });
+  }
+
+  await writeAudit(admin, req, 'admin.track.master_download_url_created', id, {
+    bucket: MASTER_BUCKET,
+    catalog_code: track.catalog_code,
+    title: track.title,
+    expires_in: expiresIn,
+    filename: track.filename || null
+  });
+
+  return res.status(200).json({
+    ok: true,
+    signedUrl: data.signedUrl,
+    expiresIn,
+    filename: track.filename || ''
   });
 }
 
@@ -811,6 +861,10 @@ module.exports = async function handler(req, res) {
 
     if (action === 'finalize-master-upload') {
       return await finalizeMasterUpload(admin, req, res, id);
+    }
+
+    if (action === 'create-master-download') {
+      return await createMasterDownload(admin, req, res, id);
     }
 
     return res.status(400).json({ error: 'Invalid admin track action' });

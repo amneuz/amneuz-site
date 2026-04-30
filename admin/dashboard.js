@@ -23,6 +23,7 @@ let timeoutId = null;
 let currentSession = null;
 let activeTrackForSave = null;
 let activeAlbumForSave = null;
+let previewBuilderState = null;
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -492,7 +493,9 @@ function ensureAdminStyles() {
     }
 
     .preview-builder-panel {
-      width: min(94vw, 520px);
+      width: min(94vw, 860px);
+      max-height: 90vh;
+      overflow: auto;
       border: 1px solid rgba(255,255,255,.14);
       border-radius: 26px;
       background: rgba(7,7,7,.94);
@@ -516,16 +519,103 @@ function ensureAdminStyles() {
       text-transform: uppercase;
     }
 
+    .preview-builder-file {
+      margin: 8px 0 0;
+      color: rgba(255,255,255,.48);
+      font-size: .8rem;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
     .preview-builder-copy {
       margin: 16px 0 0;
       color: rgba(255,255,255,.64);
       line-height: 1.55;
     }
 
+    .preview-builder-status {
+      min-height: 22px;
+      margin: 18px 0 0;
+      color: rgba(255,255,255,.62);
+      font-size: .86rem;
+      line-height: 1.5;
+    }
+
+    .preview-builder-status.ok {
+      color: rgba(159,230,184,.95);
+    }
+
+    .preview-builder-status.error {
+      color: rgba(255,142,142,.95);
+    }
+
+    .preview-builder-wave {
+      position: relative;
+      margin-top: 20px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 20px;
+      background: rgba(255,255,255,.035);
+      overflow: hidden;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .preview-builder-wave.dragging {
+      cursor: grabbing;
+    }
+
+    .preview-builder-canvas {
+      display: block;
+      width: 100%;
+      height: 190px;
+    }
+
+    .preview-builder-region {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 0;
+      border-left: 1px solid rgba(159,230,184,.8);
+      border-right: 1px solid rgba(159,230,184,.8);
+      background: rgba(103,174,135,.16);
+      box-shadow: 0 0 28px rgba(103,174,135,.18);
+      pointer-events: none;
+    }
+
+    .preview-builder-region:before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(159,230,184,.28);
+    }
+
+    .preview-builder-time {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 12px;
+      color: rgba(255,255,255,.58);
+      font-size: .82rem;
+      line-height: 1.45;
+    }
+
+    .preview-builder-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .preview-builder-controls .admin-secondary-btn {
+      min-width: 150px;
+    }
+
     .preview-builder-actions {
       display: flex;
       justify-content: flex-end;
-      margin-top: 24px;
+      margin-top: 14px;
     }
 
     .new-track-grid {
@@ -630,6 +720,20 @@ function ensureAdminStyles() {
         border-radius: 22px;
       }
 
+      .preview-builder-canvas {
+        height: 142px;
+      }
+
+      .preview-builder-time {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .preview-builder-controls {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
       .preview-builder-actions {
         justify-content: stretch;
       }
@@ -660,7 +764,21 @@ function ensurePreviewBuilderOverlay() {
     <div class="preview-builder-panel" role="dialog" aria-modal="true" aria-labelledby="previewBuilderTitle">
       <h2 id="previewBuilderTitle">Preview Builder</h2>
       <p id="previewBuilderTrack" class="preview-builder-track"></p>
-      <p class="preview-builder-copy">Waveform and 30-second selection will be added in the next step.</p>
+      <p id="previewBuilderFile" class="preview-builder-file"></p>
+      <p class="preview-builder-copy">Drag the fixed selection across the waveform. The preview duration is always 30 seconds.</p>
+      <p id="previewBuilderStatus" class="preview-builder-status"></p>
+      <div id="previewBuilderWave" class="preview-builder-wave">
+        <canvas id="previewBuilderCanvas" class="preview-builder-canvas"></canvas>
+        <div id="previewBuilderRegion" class="preview-builder-region"></div>
+      </div>
+      <div class="preview-builder-time">
+        <span id="previewBuilderTimeRange">00:00 – 00:00</span>
+        <span id="previewBuilderDuration">Duration unavailable</span>
+      </div>
+      <div class="preview-builder-controls">
+        <button id="previewBuilderPlay" class="admin-secondary-btn" type="button" disabled>Play Selection</button>
+        <button id="previewBuilderSave" class="admin-secondary-btn admin-create-btn" type="button" disabled>Save Preview</button>
+      </div>
       <div class="preview-builder-actions">
         <button id="previewBuilderClose" class="admin-secondary-btn" type="button">Cancel / Close</button>
       </div>
@@ -681,6 +799,25 @@ function ensurePreviewBuilderOverlay() {
     closeBtn.addEventListener('click', closePreviewBuilder);
   }
 
+  const playBtn = document.getElementById('previewBuilderPlay');
+  const saveBtn = document.getElementById('previewBuilderSave');
+  const wave = document.getElementById('previewBuilderWave');
+
+  if (playBtn) {
+    playBtn.addEventListener('click', togglePreviewBuilderPlayback);
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', savePreviewBuilder);
+  }
+
+  if (wave) {
+    wave.addEventListener('pointerdown', beginPreviewBuilderDrag);
+    wave.addEventListener('pointermove', movePreviewBuilderDrag);
+    wave.addEventListener('pointerup', endPreviewBuilderDrag);
+    wave.addEventListener('pointercancel', endPreviewBuilderDrag);
+  }
+
   document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape' && overlay.classList.contains('open')) {
       closePreviewBuilder();
@@ -690,20 +827,366 @@ function ensurePreviewBuilderOverlay() {
   return overlay;
 }
 
+function previewBuilderElement(id) {
+  return document.getElementById(id);
+}
+
+function setPreviewBuilderStatus(message, type) {
+  const status = previewBuilderElement('previewBuilderStatus');
+
+  if (!status) {
+    return;
+  }
+
+  status.textContent = message || '';
+  status.className = type ? `preview-builder-status ${type}` : 'preview-builder-status';
+}
+
+function formatPreviewTime(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = Math.floor(safeSeconds % 60);
+
+  return String(minutes).padStart(2, '0') + ':' + String(remainingSeconds).padStart(2, '0');
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function updatePreviewBuilderButtons() {
+  const playBtn = previewBuilderElement('previewBuilderPlay');
+  const saveBtn = previewBuilderElement('previewBuilderSave');
+  const state = previewBuilderState;
+  const isReady = !!(state && state.audioBuffer && !state.loading && !state.saving);
+
+  if (playBtn) {
+    playBtn.disabled = !isReady;
+    playBtn.textContent = state && state.playing ? 'Pause Selection' : 'Play Selection';
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = !isReady;
+    saveBtn.textContent = state && state.saving ? 'Saving...' : 'Save Preview';
+  }
+}
+
+function getPreviewAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContextClass) {
+    throw new Error('Audio decoding is not supported in this browser');
+  }
+
+  if (!previewBuilderState.audioContext) {
+    previewBuilderState.audioContext = new AudioContextClass();
+  }
+
+  return previewBuilderState.audioContext;
+}
+
+function requestMasterDownload(track) {
+  return fetch(`/api/admin-track?id=${encodeURIComponent(track.id)}&action=create-master-download`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.access_token}`
+    },
+    body: JSON.stringify({})
+  }).then(function(response) {
+    return response.json().catch(function() {
+      return {};
+    }).then(function(data) {
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to access master');
+      }
+
+      if (!data.signedUrl) {
+        throw new Error('Missing secure master access');
+      }
+
+      return data;
+    });
+  });
+}
+
+function updatePreviewBuilderRegion() {
+  const state = previewBuilderState;
+  const region = previewBuilderElement('previewBuilderRegion');
+  const timeRange = previewBuilderElement('previewBuilderTimeRange');
+  const durationLabel = previewBuilderElement('previewBuilderDuration');
+
+  if (!state || !state.audioBuffer || !region) {
+    return;
+  }
+
+  const duration = state.audioBuffer.duration || 0;
+  const selectionDuration = state.selectionDuration || 0;
+  const selectionStart = clampNumber(state.selectionStart || 0, 0, Math.max(0, duration - selectionDuration));
+  const startPercent = duration ? selectionStart / duration * 100 : 0;
+  const widthPercent = duration ? selectionDuration / duration * 100 : 0;
+
+  state.selectionStart = selectionStart;
+  region.style.left = startPercent + '%';
+  region.style.width = widthPercent + '%';
+
+  if (timeRange) {
+    timeRange.textContent = `${formatPreviewTime(selectionStart)} – ${formatPreviewTime(selectionStart + selectionDuration)}`;
+  }
+
+  if (durationLabel) {
+    durationLabel.textContent = `${formatPreviewTime(duration)} total · ${Math.round(selectionDuration)}s selected`;
+  }
+}
+
+function drawPreviewBuilderWaveform() {
+  const state = previewBuilderState;
+  const canvas = previewBuilderElement('previewBuilderCanvas');
+
+  if (!state || !state.audioBuffer || !canvas) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width || 640));
+  const height = Math.max(120, Math.floor(rect.height || 190));
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const channel = state.audioBuffer.getChannelData(0);
+  const samplesPerPixel = Math.max(1, Math.floor(channel.length / width));
+  const center = height / 2;
+  const amp = height * .42;
+
+  ctx.fillStyle = 'rgba(255,255,255,.055)';
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = 'rgba(255,255,255,.44)';
+  ctx.lineWidth = 1;
+
+  for (let x = 0; x < width; x += 2) {
+    const start = x * samplesPerPixel;
+    const end = Math.min(channel.length, start + samplesPerPixel);
+    let min = 1;
+    let max = -1;
+
+    for (let i = start; i < end; i++) {
+      const sample = channel[i] || 0;
+
+      if (sample < min) {
+        min = sample;
+      }
+
+      if (sample > max) {
+        max = sample;
+      }
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(x + .5, center + min * amp);
+    ctx.lineTo(x + .5, center + max * amp);
+    ctx.stroke();
+  }
+
+  updatePreviewBuilderRegion();
+}
+
+function previewBuilderPointerStart(event) {
+  const state = previewBuilderState;
+  const wave = previewBuilderElement('previewBuilderWave');
+
+  if (!state || !state.audioBuffer || !wave) {
+    return 0;
+  }
+
+  const rect = wave.getBoundingClientRect();
+  const x = clampNumber(event.clientX - rect.left, 0, rect.width);
+
+  return rect.width ? x / rect.width * state.audioBuffer.duration : 0;
+}
+
+function setPreviewBuilderSelectionFromPointer(event) {
+  const state = previewBuilderState;
+
+  if (!state || !state.audioBuffer) {
+    return;
+  }
+
+  const pointerSeconds = previewBuilderPointerStart(event);
+  const dragOffset = Number.isFinite(state.dragOffset) ? state.dragOffset : state.selectionDuration / 2;
+  const maxStart = Math.max(0, state.audioBuffer.duration - state.selectionDuration);
+
+  state.selectionStart = clampNumber(pointerSeconds - dragOffset, 0, maxStart);
+  updatePreviewBuilderRegion();
+}
+
+function beginPreviewBuilderDrag(event) {
+  const state = previewBuilderState;
+  const wave = previewBuilderElement('previewBuilderWave');
+
+  if (!state || !state.audioBuffer || !wave) {
+    return;
+  }
+
+  event.preventDefault();
+  stopPreviewBuilderPlayback();
+
+  const pointerSeconds = previewBuilderPointerStart(event);
+  const insideSelection = pointerSeconds >= state.selectionStart && pointerSeconds <= state.selectionStart + state.selectionDuration;
+
+  state.dragging = true;
+  state.dragOffset = insideSelection ? pointerSeconds - state.selectionStart : state.selectionDuration / 2;
+  wave.classList.add('dragging');
+  wave.setPointerCapture(event.pointerId);
+  setPreviewBuilderSelectionFromPointer(event);
+}
+
+function movePreviewBuilderDrag(event) {
+  const state = previewBuilderState;
+
+  if (!state || !state.dragging) {
+    return;
+  }
+
+  event.preventDefault();
+  setPreviewBuilderSelectionFromPointer(event);
+}
+
+function endPreviewBuilderDrag(event) {
+  const state = previewBuilderState;
+  const wave = previewBuilderElement('previewBuilderWave');
+
+  if (!state || !state.dragging) {
+    return;
+  }
+
+  state.dragging = false;
+
+  if (wave) {
+    wave.classList.remove('dragging');
+
+    try {
+      wave.releasePointerCapture(event.pointerId);
+    } catch (err) {}
+  }
+}
+
+async function loadPreviewBuilderAudio(track) {
+  const state = previewBuilderState;
+
+  if (!state || state.track !== track) {
+    return;
+  }
+
+  try {
+    setPreviewBuilderStatus('Requesting secure master access...');
+    const masterData = await requestMasterDownload(track);
+
+    if (!previewBuilderState || previewBuilderState.track !== track) {
+      return;
+    }
+
+    const fileLabel = previewBuilderElement('previewBuilderFile');
+
+    if (fileLabel) {
+      fileLabel.textContent = masterData.filename ? `Master file: ${masterData.filename}` : 'Master file ready for secure preview generation';
+    }
+
+    setPreviewBuilderStatus('Loading master...');
+    const fileResponse = await fetch(masterData.signedUrl);
+
+    if (!fileResponse.ok) {
+      throw new Error('Unable to load master');
+    }
+
+    const arrayBuffer = await fileResponse.arrayBuffer();
+
+    if (!previewBuilderState || previewBuilderState.track !== track) {
+      return;
+    }
+
+    setPreviewBuilderStatus('Decoding audio...');
+    const audioContext = getPreviewAudioContext();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    if (!previewBuilderState || previewBuilderState.track !== track) {
+      return;
+    }
+
+    const duration = audioBuffer.duration || 0;
+
+    if (!duration) {
+      throw new Error('Unable to decode audio duration');
+    }
+
+    state.audioBuffer = audioBuffer;
+    state.selectionStart = 0;
+    state.selectionDuration = Math.min(30, duration);
+    state.loading = false;
+
+    drawPreviewBuilderWaveform();
+    updatePreviewBuilderButtons();
+
+    if (duration < 30) {
+      setPreviewBuilderStatus('Ready. This track is shorter than 30 seconds, so the full duration will be used.', 'ok');
+    } else {
+      setPreviewBuilderStatus('Ready. Drag the 30-second selection.', 'ok');
+    }
+  } catch (err) {
+    if (previewBuilderState && previewBuilderState.track === track) {
+      previewBuilderState.loading = false;
+      setPreviewBuilderStatus(err.message || 'Unable to build preview.', 'error');
+      updatePreviewBuilderButtons();
+    }
+  }
+}
+
 function openPreviewBuilder(track) {
   if (!track || !track.masterPath) {
     return;
   }
 
+  if (previewBuilderState) {
+    closePreviewBuilder();
+  }
+
   const overlay = ensurePreviewBuilderOverlay();
   const trackName = document.getElementById('previewBuilderTrack');
+  const fileName = document.getElementById('previewBuilderFile');
 
   if (trackName) {
     trackName.textContent = track.displayTitle || track.title || 'Untitled track';
   }
 
+  if (fileName) {
+    fileName.textContent = track.filename ? `Master file: ${track.filename}` : 'Master file available';
+  }
+
+  previewBuilderState = {
+    track,
+    audioContext: null,
+    audioBuffer: null,
+    source: null,
+    playTimeout: null,
+    selectionStart: 0,
+    selectionDuration: 30,
+    playing: false,
+    loading: true,
+    saving: false,
+    dragging: false,
+    dragOffset: 15
+  };
+
+  setPreviewBuilderStatus('Requesting secure master access...');
+  updatePreviewBuilderButtons();
+  updatePreviewBuilderRegion();
   overlay.classList.add('open');
   overlay.setAttribute('aria-hidden', 'false');
+  loadPreviewBuilderAudio(track);
 }
 
 function closePreviewBuilder() {
@@ -713,13 +1196,324 @@ function closePreviewBuilder() {
     return;
   }
 
-  overlay.classList.remove('open');
-  overlay.setAttribute('aria-hidden', 'true');
+  stopPreviewBuilderPlayback();
+
+  if (previewBuilderState && previewBuilderState.audioContext) {
+    previewBuilderState.audioContext.close().catch(function() {});
+  }
+
+  previewBuilderState = null;
 
   const trackName = document.getElementById('previewBuilderTrack');
+  const fileName = document.getElementById('previewBuilderFile');
+  const canvas = document.getElementById('previewBuilderCanvas');
+  const region = document.getElementById('previewBuilderRegion');
+  const timeRange = document.getElementById('previewBuilderTimeRange');
+  const durationLabel = document.getElementById('previewBuilderDuration');
 
   if (trackName) {
     trackName.textContent = '';
+  }
+
+  if (fileName) {
+    fileName.textContent = '';
+  }
+
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (region) {
+    region.style.left = '0';
+    region.style.width = '0';
+  }
+
+  if (timeRange) {
+    timeRange.textContent = '00:00 – 00:00';
+  }
+
+  if (durationLabel) {
+    durationLabel.textContent = 'Duration unavailable';
+  }
+
+  setPreviewBuilderStatus('');
+  updatePreviewBuilderButtons();
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function stopPreviewBuilderPlayback() {
+  const state = previewBuilderState;
+
+  if (!state) {
+    return;
+  }
+
+  if (state.playTimeout) {
+    clearTimeout(state.playTimeout);
+    state.playTimeout = null;
+  }
+
+  if (state.source) {
+    try {
+      state.source.onended = null;
+      state.source.stop(0);
+      state.source.disconnect();
+    } catch (err) {}
+
+    state.source = null;
+  }
+
+  state.playing = false;
+  updatePreviewBuilderButtons();
+}
+
+async function togglePreviewBuilderPlayback() {
+  const state = previewBuilderState;
+
+  if (!state || !state.audioBuffer || state.loading || state.saving) {
+    return;
+  }
+
+  if (state.playing) {
+    stopPreviewBuilderPlayback();
+    return;
+  }
+
+  try {
+    const audioContext = getPreviewAudioContext();
+
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume().catch(function() {});
+    }
+
+    const source = audioContext.createBufferSource();
+    const duration = state.selectionDuration;
+
+    source.buffer = state.audioBuffer;
+    source.connect(audioContext.destination);
+    source.onended = function() {
+      if (previewBuilderState === state) {
+        stopPreviewBuilderPlayback();
+      }
+    };
+
+    state.source = source;
+    state.playing = true;
+    updatePreviewBuilderButtons();
+    source.start(0, state.selectionStart, duration);
+    state.playTimeout = setTimeout(function() {
+      if (previewBuilderState === state) {
+        stopPreviewBuilderPlayback();
+      }
+    }, duration * 1000 + 80);
+  } catch (err) {
+    setPreviewBuilderStatus('Unable to play selection.', 'error');
+    stopPreviewBuilderPlayback();
+  }
+}
+
+function getPreviewSelectionData() {
+  const state = previewBuilderState;
+  const audioBuffer = state.audioBuffer;
+  const sampleRate = audioBuffer.sampleRate;
+  const startSample = Math.floor(state.selectionStart * sampleRate);
+  const frameCount = Math.min(
+    Math.floor(state.selectionDuration * sampleRate),
+    audioBuffer.length - startSample
+  );
+  const channelCount = Math.min(2, audioBuffer.numberOfChannels || 1);
+  const channels = [];
+
+  for (let channelIndex = 0; channelIndex < channelCount; channelIndex++) {
+    channels.push(audioBuffer.getChannelData(channelIndex).slice(startSample, startSample + frameCount));
+  }
+
+  if (channels.length === 1) {
+    channels.push(channels[0]);
+  }
+
+  return {
+    sampleRate,
+    frameCount,
+    channels
+  };
+}
+
+function floatChunkToInt16(channel, start, end) {
+  const chunk = new Int16Array(end - start);
+
+  for (let index = start; index < end; index++) {
+    const sample = Math.max(-1, Math.min(1, channel[index] || 0));
+    chunk[index - start] = sample < 0 ? sample * 32768 : sample * 32767;
+  }
+
+  return chunk;
+}
+
+function encodeMp3Preview(selection) {
+  if (!window.lamejs || !window.lamejs.Mp3Encoder) {
+    throw new Error('MP3 encoder unavailable');
+  }
+
+  const channels = selection.channels.length > 1 ? 2 : 1;
+  const encoder = new window.lamejs.Mp3Encoder(channels, selection.sampleRate, 160);
+  const chunks = [];
+  const blockSize = 1152;
+
+  for (let start = 0; start < selection.frameCount; start += blockSize) {
+    const end = Math.min(selection.frameCount, start + blockSize);
+    const left = floatChunkToInt16(selection.channels[0], start, end);
+    const right = channels > 1 ? floatChunkToInt16(selection.channels[1], start, end) : null;
+    const encoded = channels > 1 ? encoder.encodeBuffer(left, right) : encoder.encodeBuffer(left);
+
+    if (encoded.length) {
+      chunks.push(encoded);
+    }
+  }
+
+  const flushed = encoder.flush();
+
+  if (flushed.length) {
+    chunks.push(flushed);
+  }
+
+  return {
+    blob: new Blob(chunks, { type: 'audio/mpeg' }),
+    mimeType: 'audio/mpeg',
+    extension: 'mp3'
+  };
+}
+
+function writeWavString(view, offset, value) {
+  for (let i = 0; i < value.length; i++) {
+    view.setUint8(offset + i, value.charCodeAt(i));
+  }
+}
+
+function encodeWavPreview(selection) {
+  const channels = selection.channels.length > 1 ? 2 : 1;
+  const bytesPerSample = 2;
+  const blockAlign = channels * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + selection.frameCount * blockAlign);
+  const view = new DataView(buffer);
+
+  writeWavString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + selection.frameCount * blockAlign, true);
+  writeWavString(view, 8, 'WAVE');
+  writeWavString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, selection.sampleRate, true);
+  view.setUint32(28, selection.sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeWavString(view, 36, 'data');
+  view.setUint32(40, selection.frameCount * blockAlign, true);
+
+  let offset = 44;
+
+  for (let frame = 0; frame < selection.frameCount; frame++) {
+    for (let channelIndex = 0; channelIndex < channels; channelIndex++) {
+      const channel = selection.channels[channelIndex] || selection.channels[0];
+      const sample = Math.max(-1, Math.min(1, channel[frame] || 0));
+      view.setInt16(offset, sample < 0 ? sample * 32768 : sample * 32767, true);
+      offset += 2;
+    }
+  }
+
+  return {
+    blob: new Blob([buffer], { type: 'audio/wav' }),
+    mimeType: 'audio/wav',
+    extension: 'wav'
+  };
+}
+
+function safePreviewFileName(track, extension) {
+  const base = String(track.catalogCode || track.legacyId || track.title || 'amneuz-preview')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'amneuz-preview';
+
+  return `${base}-preview.${extension}`;
+}
+
+async function savePreviewBuilder() {
+  const state = previewBuilderState;
+
+  if (!state || !state.track || !state.audioBuffer || state.saving || !currentSession) {
+    return;
+  }
+
+  stopPreviewBuilderPlayback();
+  state.saving = true;
+  updatePreviewBuilderButtons();
+
+  try {
+    setPreviewBuilderStatus('Encoding preview...');
+    const selection = getPreviewSelectionData();
+    let encoded;
+    let usedFallback = false;
+
+    try {
+      encoded = encodeMp3Preview(selection);
+    } catch (err) {
+      usedFallback = true;
+      setPreviewBuilderStatus('MP3 encoder unavailable. Saving WAV preview...');
+      encoded = encodeWavPreview(selection);
+    }
+
+    const fileBase64 = await fileToBase64(encoded.blob);
+
+    setPreviewBuilderStatus(usedFallback ? 'Uploading WAV preview...' : 'Uploading preview...');
+
+    const response = await fetch('/api/admin-upload-preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({
+        trackId: state.track.id,
+        fileName: safePreviewFileName(state.track, encoded.extension),
+        mimeType: encoded.mimeType,
+        fileBase64,
+        source: 'preview_builder',
+        previewStartSeconds: state.selectionStart,
+        previewDurationSeconds: state.selectionDuration
+      })
+    });
+
+    const data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to save preview');
+    }
+
+    if (activeTrackForSave && activeTrackForSave.id === state.track.id) {
+      activeTrackForSave.previewUrl = data.previewUrl;
+      activeTrackForSave.rawPreviewUrl = data.previewUrl;
+    }
+
+    setPreviewBuilderStatus('Preview saved.', 'ok');
+    setSaveStatus('Preview saved.', 'ok');
+    setFooterButtonToClose();
+    await loadAdminTracks();
+    setTimeout(function() {
+      if (previewBuilderState === state) {
+        closePreviewBuilder();
+      }
+    }, 700);
+  } catch (err) {
+    state.saving = false;
+    setPreviewBuilderStatus(err.message || 'Unable to save preview.', 'error');
+    updatePreviewBuilderButtons();
   }
 }
 
@@ -1115,6 +1909,7 @@ function openModal() {
 }
 
 function closeModal() {
+  closePreviewBuilder();
   trackModal.classList.remove('show');
   trackModal.setAttribute('aria-hidden', 'true');
   trackModalTitle.textContent = 'Loading track...';
@@ -2528,8 +3323,22 @@ trackModal.addEventListener('click', function(event) {
 });
 
 document.addEventListener('keydown', function(event) {
+  const previewOverlay = document.getElementById('previewBuilderOverlay');
+
+  if (previewOverlay && previewOverlay.classList.contains('open')) {
+    return;
+  }
+
   if (event.key === 'Escape' && trackModal.classList.contains('show')) {
     closeModal();
+  }
+});
+
+window.addEventListener('resize', function() {
+  const previewOverlay = document.getElementById('previewBuilderOverlay');
+
+  if (previewOverlay && previewOverlay.classList.contains('open') && previewBuilderState && previewBuilderState.audioBuffer) {
+    drawPreviewBuilderWaveform();
   }
 });
 
