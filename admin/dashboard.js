@@ -1872,6 +1872,10 @@ function editableCheckbox(label, id, checked) {
   `;
 }
 
+function dateInputValue(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
 function newTrackField(label, id, type, value, full) {
   return `
     <div class="new-track-field ${full ? 'full' : ''}">
@@ -2261,7 +2265,7 @@ async function openTrackModal(trackId) {
           ${editableInput('BPM', 'bpmInput', track.bpm, 'text')}
           ${editableInput('Duration', 'durationLabelInput', track.durationLabel, 'text')}
           ${editableInput('Release Year', 'releaseYearInput', track.releaseYear, 'number')}
-          ${editableInput('Release Date', 'releaseDateInput', track.releaseDate, 'date')}
+          ${editableInput('Release Date', 'releaseDateInput', dateInputValue(track.releaseDate || track.release_date), 'date')}
           ${editableInput('Price MXN', 'priceMxnInput', track.priceMxn, 'number')}
           ${editableInput('Sort Order', 'sortOrderInput', track.sortOrder, 'number')}
 
@@ -2598,7 +2602,7 @@ async function saveTrackSafeChanges() {
     bpm: valueOf('bpmInput', track.bpm),
     durationLabel: valueOf('durationLabelInput', track.durationLabel),
     releaseYear: valueOf('releaseYearInput', track.releaseYear),
-    releaseDate: valueOf('releaseDateInput', track.releaseDate),
+    releaseDate: valueOf('releaseDateInput', dateInputValue(track.releaseDate || track.release_date)),
     priceMxn: valueOf('priceMxnInput', track.priceMxn),
     sortOrder: valueOf('sortOrderInput', track.sortOrder),
     isFeatured: checkedOf('isFeaturedInput', track.isFeatured),

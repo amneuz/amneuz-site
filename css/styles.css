@@ -1369,10 +1369,10 @@
   .next-release-card,
   .next-release-card.active{
     grid-template-columns:1fr;
-    gap:14px;
+    gap:12px;
     max-width:430px;
     margin-inline:auto;
-    padding:14px;
+    padding:12px;
     border-radius:24px;
   }
 
@@ -1396,7 +1396,7 @@
   }
 
   .next-release-preview{
-    margin-top:8px;
+    margin-top:4px;
   }
 
   .next-release-countdown{
@@ -1413,7 +1413,31 @@
   }
 
   .next-release-buy{
-    align-items:flex-start;
-    flex-direction:column;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center;
+    gap:7px 10px;
+    width:100%;
+    margin-top:16px;
+  }
+
+  .next-release-quality{
+    grid-column:1/2;
+    justify-self:start;
+  }
+
+  .next-release-add{
+    grid-column:2/3;
+    grid-row:1/3;
+    align-self:center;
+    justify-self:end;
+    width:auto;
+    min-height:36px;
+    padding:9px 13px 8px;
+    font-size:.5rem;
+  }
+
+  .next-release-price{
+    grid-column:1/2;
   }
 }
