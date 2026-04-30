@@ -899,92 +899,8 @@ function albumRow(album){
   list.style.display=isOpen?'grid':'none';
 
   if(isOpen){
-    album.tracks.forEach(function(t){
-      var item=document.createElement('div');
-      var trackAdded=isTrackInCart(t.id);
-      var miniPlatforms=document.createElement('div');
-      var addTrackBtn=document.createElement('button');
-
-      item.className='album-track-item track';
-      item.setAttribute('data-track-id',t.id);
-
-     item.innerHTML=
-
-  '<div class="album-track-main">'+
-
-    '<p class="album-track-title"></p>'+
-
-    '<p class="album-track-meta"></p>'+
-
-    '<div class="track-wave album-track-wave">'+
-
-      '<div class="track-waveform"></div>'+
-
-    '</div>'+
-
-    '<p class="track-listen album-track-listen">Choose your platform</p>'+
-
-    '<div class="album-track-platforms"></div>'+
-
-  '</div>'+
-        '<div class="album-track-actions">'+
-          '<span class="album-track-price"></span>'+
-          '<button class="admin-mini-btn albumTrackAdd" type="button"></button>'+
-        '</div>';
-
-      item.querySelector('.album-track-title').textContent=(t.trackNumber?String(t.trackNumber).padStart(2,'0')+'. ':'')+t.title;
-      item.querySelector('.album-track-meta').textContent=[t.genre,t.key,t.bpm?String(t.bpm)+' BPM':'',t.duration].filter(Boolean).join(' · ');
-      item.querySelector('.album-track-price').textContent=money(price(t));
-
-      miniPlatforms=item.querySelector('.album-track-platforms');
-
-      appendPlatform(miniPlatforms,'SoundCloud',t.soundcloud);
-      appendPlatform(miniPlatforms,'Spotify',t.spotify);
-      appendPlatform(miniPlatforms,'Apple Music',t.appleMusic);
-      appendPlatform(miniPlatforms,'Tidal',t.tidal);
-      appendPlatform(miniPlatforms,'YouTube',t.youtube);
-      appendPlatform(miniPlatforms,'Beatport',t.beatport);
-
-      addTrackBtn=item.querySelector('.albumTrackAdd');
-      addTrackBtn.textContent=trackAdded?'Added':'Add Track';
-      addTrackBtn.classList.toggle('added',trackAdded);
-
-      item.onclick=function(e){
-        if(e.target.closest('button')||e.target.closest('a')){
-          return;
-        }
-
-        e.stopPropagation();
-        clearDeepLinkHighlight();
-        togglePreview(t);
-      };
-
-      item.querySelector('.album-track-wave').onclick=function(e){
-        e.stopPropagation();
-
-        if(currentPreviewTrackId===t.id&&currentWaveSurfer&&!currentWaveSurfer.isPlaying()){
-          playCurrent();
-          return;
-        }
-
-        togglePreview(t);
-      };
-
-      addTrackBtn.onclick=function(e){
-        e.stopPropagation();
-
-        var key=cartKey('track',t.id);
-
-        if(cart.indexOf(key)===-1){
-          cart.push(key);
-          saveStoredCart();
-        }
-
-        renderCart();
-        renderCatalog(activeCat());
-      };
-
-      list.appendChild(item);
+    album.tracks.map(function(t){return row(t)}).forEach(function(trackRow){
+      list.appendChild(trackRow);
     });
   }
 
@@ -1015,7 +931,7 @@ function albumRow(album){
   };
 
   wrap.onclick=function(e){
-    if(e.target.closest('button')||e.target.closest('a')||e.target.closest('.album-track-item')){
+    if(e.target.closest('button')||e.target.closest('a')||e.target.closest('.album-track-list')){
       return;
     }
 

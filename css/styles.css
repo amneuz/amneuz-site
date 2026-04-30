@@ -723,6 +723,18 @@
 
 }
 
+.track-wave{
+
+  overflow:hidden;
+
+}
+
+.track-wave canvas{
+
+  max-width:100%;
+
+}
+
 @media(max-width:560px){
 
   .album-track-listen{
