@@ -1265,6 +1265,8 @@ function renderNextRelease(){
   var waveform=document.createElement('div');
   var listen=document.createElement('p');
   var platforms=document.createElement('div');
+  var lower=document.createElement('div');
+  var stream=document.createElement('div');
   var buy=document.createElement('div');
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
@@ -1282,7 +1284,7 @@ function renderNextRelease(){
   cover.alt=item.title;
 
   badge.className='next-release-badge';
-  badge.textContent='Next Release';
+  badge.textContent='New Release';
 
   title.className='next-release-title';
   title.textContent=item.title;
@@ -1321,6 +1323,8 @@ function renderNextRelease(){
   listen.className='track-listen next-release-listen';
   listen.textContent='Choose your platform';
   platforms.className='track-platforms next-release-platforms';
+  lower.className='next-release-lower';
+  stream.className='next-release-stream';
 
   if(state.isReleased){
     appendPlatform(platforms,'SoundCloud',item.soundcloud);
@@ -1331,12 +1335,26 @@ function renderNextRelease(){
     appendPlatform(platforms,'Beatport',item.beatport);
   }
 
-  if(!platforms.children.length){
+  if(!state.isReleased){
     var platformEmpty=document.createElement('p');
 
     platformEmpty.className='next-release-platform-empty';
-    platformEmpty.textContent=state.isReleased?'Streaming links coming soon':'Streaming links available on release day';
+    platformEmpty.textContent='Streaming links available on release day';
     platforms.appendChild(platformEmpty);
+
+    ['SoundCloud','Spotify','Apple Music','Tidal','YouTube'].forEach(function(name){
+      var locked=document.createElement('span');
+
+      locked.className='track-platform next-release-platform-locked';
+      locked.textContent=name;
+      platforms.appendChild(locked);
+    });
+  }else if(!platforms.children.length){
+    var platformSoon=document.createElement('p');
+
+    platformSoon.className='next-release-platform-empty';
+    platformSoon.textContent='Streaming links coming soon';
+    platforms.appendChild(platformSoon);
   }
 
   buy.className='next-release-buy';
@@ -1357,6 +1375,10 @@ function renderNextRelease(){
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
+  stream.appendChild(listen);
+  stream.appendChild(platforms);
+  lower.appendChild(stream);
+  lower.appendChild(buy);
   content.appendChild(badge);
   content.appendChild(title);
   content.appendChild(metaLine);
@@ -1366,9 +1388,7 @@ function renderNextRelease(){
   card.appendChild(content);
   card.appendChild(media);
   card.appendChild(preview);
-  card.appendChild(listen);
-  card.appendChild(platforms);
-  card.appendChild(buy);
+  card.appendChild(lower);
   c.appendChild(card);
 
   if(state.isFuture){
