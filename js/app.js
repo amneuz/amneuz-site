@@ -893,7 +893,11 @@ function albumTrackRow(t){
   item.appendChild(main);
   item.appendChild(expanded);
 
-  item.onclick=function(){
+  item.onclick=function(e){
+    var isButton=e.target.closest('button');
+
+    if(isButton)return;
+
     var isExpanded=item.classList.contains('active')&&currentPreviewTrackId===t.id;
 
     clearDeepLinkHighlight();
@@ -908,7 +912,10 @@ function albumTrackRow(t){
     }
 
     item.classList.add('active');
-    openPreview(t);
+
+    setTimeout(function(){
+      openPreview(t);
+    },60);
   };
 
   wave.onclick=function(e){
@@ -919,7 +926,8 @@ function albumTrackRow(t){
     }
   };
 
-  add.onclick=function(){
+  add.onclick=function(e){
+    e.stopPropagation();
     clearDeepLinkHighlight();
 
     var key=cartKey('track',t.id);
