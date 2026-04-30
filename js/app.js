@@ -902,8 +902,8 @@ function albumRow(album){
     album.tracks.forEach(function(t){
       var item=document.createElement('div');
       var trackAdded=isTrackInCart(t.id);
-      var miniPlatforms;
-      var addTrackBtn;
+      var miniPlatforms=document.createElement('div');
+      var addTrackBtn=document.createElement('button');
 
       item.className='album-track-item track';
       item.setAttribute('data-track-id',t.id);
@@ -912,10 +912,10 @@ function albumRow(album){
         '<div class="album-track-main">'+
           '<p class="album-track-title"></p>'+
           '<p class="album-track-meta"></p>'+
-          '<div class="album-track-platforms"></div>'+
           '<div class="track-wave album-track-wave">'+
             '<div class="track-waveform"></div>'+
           '</div>'+
+          '<div class="album-track-platforms"></div>'+
         '</div>'+
         '<div class="album-track-actions">'+
           '<span class="album-track-price"></span>'+
