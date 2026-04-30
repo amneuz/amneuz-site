@@ -893,13 +893,22 @@ function albumTrackRow(t){
   item.appendChild(main);
   item.appendChild(expanded);
 
-  item.onclick=function(){
-    clearDeepLinkHighlight();
-    togglePreview(t);
-  };
+  item.onclick=function(e){
+    if(e.target.closest('button')){
+      return;
+    }
 
-  expanded.onclick=function(e){
-    e.stopPropagation();
+    clearDeepLinkHighlight();
+    all('.album-track').forEach(function(trackRow){
+      if(trackRow!==item)trackRow.classList.remove('active','playing','loading');
+    });
+
+    if(item.classList.contains('active')&&currentPreviewTrackId===t.id){
+      closePreview();
+      return;
+    }
+
+    togglePreview(t);
   };
 
   wave.onclick=function(e){
