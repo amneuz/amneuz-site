@@ -850,3 +850,21 @@
   }
 
 }
+
+.album-track-expanded {
+
+  display: none;
+
+}
+
+.album-track.active .album-track-expanded {
+
+  display: block;
+
+}
+
+.album-track .track-wave {
+
+  min-height: 60px;
+
+}

@@ -478,6 +478,13 @@ function togglePreview(t){
 function openPreview(t){
   var row=document.querySelector('.track[data-track-id="'+t.id+'"],.album-track[data-track-id="'+t.id+'"]');
   var w=row?row.querySelector('.track-waveform'):null;
+  if (w) {
+
+  w.style.display = 'block';
+
+  w.offsetHeight;
+
+}
   var src=t.preview||('assets/audio/'+t.id+'-preview.wav');
   var isMobile=window.matchMedia&&window.matchMedia('(max-width:560px)').matches;
   var waveHeight=isMobile?44:64;
@@ -915,7 +922,7 @@ function albumTrackRow(t){
 
     setTimeout(function(){
       openPreview(t);
-    },60);
+    },120);
   };
 
   wave.onclick=function(e){
