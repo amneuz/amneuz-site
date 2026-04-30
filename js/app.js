@@ -17,6 +17,7 @@ var ambientFade=null;
 var previewFade=null;
 var currentWaveSurfer=null;
 var currentPreviewTrackId=null;
+var currentPreviewPersistent=false;
 var openAlbumIds=[];
 var nextReleaseTimer=null;
 
@@ -474,6 +475,7 @@ function closePreview(){
   previewSwitching=false;
 
   currentPreviewTrackId=null;
+  currentPreviewPersistent=false;
 
   all('.track-waveform').forEach(function(w){
 
@@ -510,13 +512,15 @@ function togglePreview(t){
   openPreview(t);
 }
 
-function openPreview(t){
+function openPreview(t,options){
+  options=options||{};
+
   var row=document.querySelector('.track[data-track-id="'+t.id+'"],.album-track[data-track-id="'+t.id+'"]');
   var expanded=row?row.querySelector('.album-track-expanded'):null;
   var w=row?row.querySelector('.track-waveform'):null;
   var src=t.preview||('assets/audio/'+t.id+'-preview.wav');
   var isMobile=window.matchMedia&&window.matchMedia('(max-width:560px)').matches;
-  var waveHeight=isMobile?44:64;
+  var waveHeight=options.waveHeight||(isMobile?44:64);
 
   all('.track,.album-track').forEach(function(x){
     x.classList.remove('active','playing','loading');
@@ -554,6 +558,7 @@ function openPreview(t){
 
   previewSwitching=false;
   currentPreviewTrackId=t.id;
+  currentPreviewPersistent=!!options.persistent;
 
   window.requestAnimationFrame(function(){
     window.requestAnimationFrame(function(){
@@ -580,7 +585,9 @@ function openPreview(t){
         if(row)row.classList.remove('loading');
 
         currentWaveSurfer.setVolume(.85);
-        playCurrent();
+        if(options.autoplay!==false){
+          playCurrent();
+        }
         updateTrackStates();
       });
 
@@ -591,10 +598,24 @@ function openPreview(t){
 
       currentWaveSurfer.on('pause',function(){
         if(previewSwitching)return;
+
+        if(currentPreviewPersistent){
+          resumeAmbientAfterPreview();
+          updateTrackStates();
+          return;
+        }
+
         closePreview();
       });
 
       currentWaveSurfer.on('finish',function(){
+        if(currentPreviewPersistent){
+          if(currentWaveSurfer&&currentWaveSurfer.seekTo)currentWaveSurfer.seekTo(0);
+          resumeAmbientAfterPreview();
+          updateTrackStates();
+          return;
+        }
+
         closePreview();
       });
 
@@ -1273,6 +1294,7 @@ function renderNextRelease(){
   var add=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
   var state=releaseState(releaseDate);
+  var nextReleaseWaveHeight=window.matchMedia&&window.matchMedia('(max-width:760px)').matches?54:78;
 
   card.className='track next-release-card';
   card.setAttribute('data-track-id',previewTrack.id);
@@ -1284,7 +1306,7 @@ function renderNextRelease(){
   cover.alt=item.title;
 
   badge.className='next-release-badge';
-  badge.textContent=state.isFuture?'Next Release':'New Release';
+  badge.textContent='New Release';
 
   title.className='next-release-title';
   title.textContent=item.title;
@@ -1370,8 +1392,8 @@ function renderNextRelease(){
     : 'Available Soon';
 
   wave.appendChild(waveform);
-  preview.appendChild(play);
   preview.appendChild(wave);
+  preview.appendChild(play);
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
@@ -1383,13 +1405,15 @@ function renderNextRelease(){
   content.appendChild(title);
   content.appendChild(metaLine);
   content.appendChild(release);
-  if(state.isFuture)content.appendChild(countdown);
   media.appendChild(cover);
   card.appendChild(content);
   card.appendChild(media);
   card.appendChild(preview);
+  if(state.isFuture)card.appendChild(countdown);
   card.appendChild(lower);
   c.appendChild(card);
+
+  openPreview(previewTrack,{autoplay:false,persistent:true,waveHeight:nextReleaseWaveHeight});
 
   if(state.isFuture){
     updateCountdown(countdown,releaseDate);
@@ -1400,12 +1424,19 @@ function renderNextRelease(){
 
   play.onclick=function(e){
     e.stopPropagation();
-    togglePreview(previewTrack);
-  };
 
-  card.onclick=function(e){
-    if(e.target.closest('button')||e.target.closest('a'))return;
-    togglePreview(previewTrack);
+    if(currentPreviewTrackId===previewTrack.id&&currentWaveSurfer){
+      if(currentWaveSurfer.isPlaying()){
+        currentWaveSurfer.pause();
+      }else{
+        playCurrent();
+      }
+
+      updateTrackStates();
+      return;
+    }
+
+    openPreview(previewTrack,{persistent:true,waveHeight:nextReleaseWaveHeight});
   };
 
   add.onclick=function(e){

@@ -1267,7 +1267,12 @@
   text-transform:uppercase;
 }
 
+.next-release-date{
+  color:rgba(185,205,255,.9);
+}
+
 .next-release-countdown{
+  grid-column:1/-1;
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
   gap:12px;
@@ -1303,6 +1308,9 @@
 
 .next-release-preview{
   grid-column:1/-1;
+  display:grid;
+  gap:14px;
+  justify-items:start;
   margin-top:12px;
 }
 
@@ -1318,13 +1326,15 @@
   text-transform:uppercase;
 }
 
-.next-release-wave{
+.next-release-card .next-release-wave{
+  display:block;
+  width:100%;
   margin-top:14px;
   overflow:hidden;
 }
 
-.next-release-card.active .next-release-wave{
-  display:block;
+.next-release-card .next-release-wave .track-waveform{
+  height:78px;
 }
 
 .next-release-wave canvas{
@@ -1404,14 +1414,6 @@
   cursor:not-allowed;
 }
 
-.next-release-card.active .next-release-lower{
-  gap:14px;
-}
-
-.next-release-card.active .next-release-buy{
-  gap:9px;
-}
-
 @media(max-width:760px){
   .next-release-card,
   .next-release-card.active{
@@ -1443,7 +1445,12 @@
   }
 
   .next-release-preview{
+    gap:10px;
     margin-top:4px;
+  }
+
+  .next-release-card .next-release-wave .track-waveform{
+    height:54px;
   }
 
   .next-release-countdown{
