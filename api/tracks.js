@@ -35,6 +35,7 @@ function mapTrack(track) {
     bpm: track.bpm,
     duration: track.duration_label,
     release: track.release_year ? String(track.release_year) : '',
+    releaseDate: track.release_date,
     cover: track.cover_url,
     preview: track.preview_url,
     storagePath: track.master_path,
@@ -46,6 +47,7 @@ function mapTrack(track) {
     beatport: track.beatport_url,
     stripePriceId: track.stripe_price_id,
     priceMxn: track.price_mxn,
+    status: track.status,
     isFeatured: track.is_featured,
     isLatestRelease: track.is_latest_release,
     descriptionShort: track.description_short,
@@ -99,6 +101,7 @@ async function getVisibleTracks() {
       bpm,
       duration_label,
       release_year,
+      release_date,
       price_mxn,
       cover_url,
       preview_url,
@@ -119,7 +122,7 @@ async function getVisibleTracks() {
       album_id,
       track_number
     `)
-    .eq('status', 'visible')
+    .or('status.eq.visible,and(status.eq.upcoming,is_latest_release.eq.true)')
     .order('sort_order', { ascending: true })
     .order('track_number', { ascending: true });
 
@@ -158,7 +161,7 @@ async function getVisibleAlbums() {
       stripe_price_id,
       price_mxn
     `)
-    .eq('status', 'visible')
+    .or('status.eq.visible,and(status.eq.upcoming,is_latest_release.eq.true)')
     .order('sort_order', { ascending: true });
 
   if (error) {

@@ -18,6 +18,7 @@ var previewFade=null;
 var currentWaveSurfer=null;
 var currentPreviewTrackId=null;
 var openAlbumIds=[];
+var nextReleaseTimer=null;
 
 var displayPrices={'001':89,'002':109};
 
@@ -25,7 +26,7 @@ function id(x){return document.getElementById(x)}
 function all(s){return Array.prototype.slice.call(document.querySelectorAll(s))}
 function price(t){return Number(t.priceMxn||displayPrices[t.id]||0)}
 function money(n){return '$'+Number(n||0).toFixed(0)+' MXN'}
-function activeCat(){var a=document.querySelector('.tab.active');return a?a.getAttribute('data-cat'):'remixes'}
+function activeCat(){var a=document.querySelector('.tab.active');return a?a.getAttribute('data-cat'):'next-release'}
 function getTrackParam(){return new URLSearchParams(window.location.search).get('track')}
 function slugify(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
 
@@ -150,6 +151,7 @@ function normalizeTrack(t){
     bpm:t.bpm||null,
     duration:t.duration||t.duration_label||'',
     release:t.release||t.release_year||'',
+    releaseDate:t.releaseDate||t.release_date||'',
     cover:t.cover||t.cover_url||'',
     preview:t.preview||t.preview_url||'',
     storagePath:t.storagePath||t.master_path||'',
@@ -162,6 +164,7 @@ function normalizeTrack(t){
     tidal:t.tidal||t.tidal_url||'',
     stripePriceId:t.stripePriceId||t.stripe_price_id||'',
     priceMxn:t.priceMxn||t.price_mxn||0,
+    status:t.status||'visible',
     isFeatured:!!(t.isFeatured||t.is_featured),
     isLatestRelease:!!(t.isLatestRelease||t.is_latest_release),
     descriptionShort:t.descriptionShort||t.description_short||'',
@@ -191,6 +194,7 @@ function normalizeAlbum(a){
     beatport:a.beatport||a.beatport_url||'',
     stripePriceId:a.stripePriceId||a.stripe_price_id||'',
     priceMxn:a.priceMxn||a.price_mxn||0,
+    status:a.status||'visible',
     isFeatured:!!(a.isFeatured||a.is_featured),
     isLatestRelease:!!(a.isLatestRelease||a.is_latest_release),
     descriptionShort:a.descriptionShort||a.description_short||'',
@@ -1126,14 +1130,244 @@ function albumRow(album){
   return wrap;
 }
 
+function clearNextReleaseTimer(){
+  if(nextReleaseTimer){
+    clearInterval(nextReleaseTimer);
+    nextReleaseTimer=null;
+  }
+}
+
+function formatReleaseDate(value){
+  if(!value)return 'Release date coming soon';
+
+  var date=new Date(value);
+
+  if(isNaN(date.getTime()))return 'Release date coming soon';
+
+  return date.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
+}
+
+function updateCountdown(box,releaseDate){
+  var target=releaseDate?new Date(releaseDate):null;
+  var parts={days:'00',hours:'00',minutes:'00',seconds:'00'};
+
+  if(target&&!isNaN(target.getTime())){
+    var diff=Math.max(0,target.getTime()-Date.now());
+    var seconds=Math.floor(diff/1000);
+    var days=Math.floor(seconds/86400);
+
+    seconds-=days*86400;
+
+    var hours=Math.floor(seconds/3600);
+
+    seconds-=hours*3600;
+
+    var minutes=Math.floor(seconds/60);
+
+    seconds-=minutes*60;
+
+    parts.days=String(days).padStart(2,'0');
+    parts.hours=String(hours).padStart(2,'0');
+    parts.minutes=String(minutes).padStart(2,'0');
+    parts.seconds=String(seconds).padStart(2,'0');
+  }
+
+  ['days','hours','minutes','seconds'].forEach(function(key){
+    var el=box.querySelector('[data-count="'+key+'"]');
+
+    if(el)el.textContent=parts[key];
+  });
+}
+
+function nextReleaseCandidate(){
+  var latestTracks=tracks.filter(function(t){return t.isLatestRelease});
+  var latestAlbums=albums.filter(function(a){return a.isLatestRelease});
+  var upcomingTrack=latestTracks.find(function(t){return t.status==='upcoming'});
+  var upcomingAlbum=latestAlbums.find(function(a){return a.status==='upcoming'});
+
+  if(upcomingTrack)return {type:'track',item:upcomingTrack,previewTrack:upcomingTrack};
+  if(latestTracks[0])return {type:'track',item:latestTracks[0],previewTrack:latestTracks[0]};
+  if(upcomingAlbum)return {type:'album',item:upcomingAlbum,previewTrack:upcomingAlbum.tracks.find(function(t){return t.preview})||upcomingAlbum.tracks[0]||null};
+  if(latestAlbums[0])return {type:'album',item:latestAlbums[0],previewTrack:latestAlbums[0].tracks.find(function(t){return t.preview})||latestAlbums[0].tracks[0]||null};
+
+  return null;
+}
+
+function renderNextRelease(){
+  var c=id('catalog');
+  var candidate=nextReleaseCandidate();
+
+  if(!c)return;
+
+  if(!candidate){
+    c.innerHTML='<p class="cart-empty">No upcoming release announced yet.</p>';
+    return;
+  }
+
+  var item=candidate.item;
+  var previewTrack=candidate.previewTrack||item;
+  var card=document.createElement('article');
+  var content=document.createElement('div');
+  var media=document.createElement('div');
+  var cover=document.createElement('img');
+  var badge=document.createElement('p');
+  var title=document.createElement('h3');
+  var metaLine=document.createElement('p');
+  var release=document.createElement('p');
+  var countdown=document.createElement('div');
+  var preview=document.createElement('div');
+  var play=document.createElement('button');
+  var wave=document.createElement('div');
+  var waveform=document.createElement('div');
+  var listen=document.createElement('p');
+  var platforms=document.createElement('div');
+  var buy=document.createElement('div');
+  var priceEl=document.createElement('p');
+  var quality=document.createElement('p');
+  var add=document.createElement('button');
+  var benefits=document.createElement('div');
+  var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
+
+  card.className='track next-release-card';
+  card.setAttribute('data-track-id',previewTrack.id);
+
+  content.className='next-release-content';
+  media.className='next-release-media';
+  cover.className='next-release-cover';
+  cover.src=item.cover||previewTrack.cover||'';
+  cover.alt=item.title;
+
+  badge.className='next-release-badge';
+  badge.textContent='Next Release';
+
+  title.className='next-release-title';
+  title.textContent=item.title;
+
+  metaLine.className='next-release-meta';
+  metaLine.textContent=candidate.type==='album'
+    ? [(item.releaseType||'album').toUpperCase(),item.tracks&&item.tracks.length?item.tracks.length+' tracks':'',item.release||''].filter(Boolean).join(' · ')
+    : [item.genre,item.bpm?String(item.bpm)+' BPM':'',item.key].filter(Boolean).join(' · ');
+
+  release.className='next-release-date';
+  release.textContent='Available on '+formatReleaseDate(releaseDate);
+
+  countdown.className='next-release-countdown';
+  ['days','hours','minutes','seconds'].forEach(function(key){
+    var unit=document.createElement('span');
+    var number=document.createElement('strong');
+    var label=document.createElement('small');
+
+    number.setAttribute('data-count',key);
+    number.textContent='00';
+    label.textContent=key;
+    unit.appendChild(number);
+    unit.appendChild(label);
+    countdown.appendChild(unit);
+  });
+
+  preview.className='next-release-preview';
+  play.className='next-release-play';
+  play.type='button';
+  play.textContent='Play Preview';
+
+  wave.className='track-wave next-release-wave';
+  waveform.className='track-waveform';
+  listen.className='track-listen next-release-listen';
+  listen.textContent='Choose your platform';
+  platforms.className='track-platforms next-release-platforms';
+
+  appendPlatform(platforms,'SoundCloud',item.soundcloud);
+  appendPlatform(platforms,'Spotify',item.spotify);
+  appendPlatform(platforms,'Apple Music',item.appleMusic);
+  appendPlatform(platforms,'Tidal',item.tidal);
+  appendPlatform(platforms,'YouTube',item.youtube);
+  appendPlatform(platforms,'Beatport',item.beatport);
+
+  buy.className='next-release-buy';
+  priceEl.className='track-price next-release-price';
+  priceEl.textContent=money(price(item));
+  quality.className='track-quality next-release-quality';
+  quality.textContent='High-quality WAV';
+  add.className='tbtn next-release-add';
+  add.type='button';
+  add.textContent=candidate.type==='album'?(isAlbumInCart(item.id)?'Album Added':'Add Album'):(isTrackInCart(item.id)?'Added':'Add to Cart');
+
+  benefits.className='next-release-benefits';
+  ['Secure Payment','Instant Download','High Quality'].forEach(function(text){
+    var benefit=document.createElement('span');
+
+    benefit.textContent=text;
+    benefits.appendChild(benefit);
+  });
+
+  wave.appendChild(waveform);
+  preview.appendChild(play);
+  preview.appendChild(wave);
+  buy.appendChild(priceEl);
+  buy.appendChild(quality);
+  buy.appendChild(add);
+  content.appendChild(badge);
+  content.appendChild(title);
+  content.appendChild(metaLine);
+  content.appendChild(release);
+  content.appendChild(countdown);
+  content.appendChild(preview);
+  content.appendChild(listen);
+  content.appendChild(platforms);
+  content.appendChild(buy);
+  content.appendChild(benefits);
+  media.appendChild(cover);
+  card.appendChild(content);
+  card.appendChild(media);
+  c.appendChild(card);
+
+  updateCountdown(countdown,releaseDate);
+  nextReleaseTimer=setInterval(function(){
+    updateCountdown(countdown,releaseDate);
+  },1000);
+
+  play.onclick=function(e){
+    e.stopPropagation();
+    togglePreview(previewTrack);
+  };
+
+  card.onclick=function(e){
+    if(e.target.closest('button')||e.target.closest('a'))return;
+    togglePreview(previewTrack);
+  };
+
+  add.onclick=function(e){
+    e.stopPropagation();
+
+    var key=cartKey(candidate.type,item.id);
+
+    if(cart.indexOf(key)===-1){
+      cart.push(key);
+      saveStoredCart();
+    }
+
+    renderCart();
+    add.textContent=candidate.type==='album'?'Album Added':'Added';
+    add.classList.add('added');
+  };
+}
+
 function renderCatalog(cat){
   var c=id('catalog');
 
   if(!c)return;
 
+  clearNextReleaseTimer();
+
   if(currentWaveSurfer)closePreview();
 
   c.innerHTML='';
+
+  if(cat==='next-release'){
+    renderNextRelease();
+    updateTrackStates();
+    return;
+  }
 
   if(cat==='album'){
     if(!albums.length){
@@ -1151,7 +1385,7 @@ function renderCatalog(cat){
   }
 
   tracks
-    .filter(function(t){return t.category===cat})
+    .filter(function(t){return t.category===cat&&t.status!=='upcoming'})
     .forEach(function(t){
       c.appendChild(row(t));
     });
