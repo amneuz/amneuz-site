@@ -213,12 +213,6 @@ function setTracksFromData(data){
       .filter(function(a){return a.id&&a.stripePriceId});
   }
 
-  console.log('AMNEUZ catalog loaded:', {
-    tracks: tracks.length,
-    albums: albums.length,
-    source: Array.isArray(data)?'legacy-array':'api-object'
-  });
-
   normalizeCart();
   saveStoredCart();
   renderCatalog(activeCat());
@@ -236,8 +230,6 @@ function loadTracks(){
       setTracksFromData(data)
     })
     .catch(function(apiErr){
-      console.warn('Failed to load /api/tracks. Falling back to data/tracks.json',apiErr);
-
       return fetch('data/tracks.json')
         .then(function(r){
           if(!r.ok)throw new Error('HTTP '+r.status);
@@ -246,9 +238,7 @@ function loadTracks(){
         .then(function(data){
           setTracksFromData(data)
         })
-        .catch(function(err){
-          console.warn('Failed to load data/tracks.json',err)
-        })
+        .catch(function(err){})
     })
 }
 
@@ -665,35 +655,24 @@ function meta(text){
 }
 
 function platformLink(name,url){
-
   var cleanUrl=String(url||'').trim();
 
   if(!cleanUrl)return null;
-
   if(cleanUrl.toLowerCase()==='null')return null;
-
   if(cleanUrl.toLowerCase()==='undefined')return null;
-
   if(cleanUrl==='-')return null;
-
   if(cleanUrl==='#')return null;
 
   var el=document.createElement('a');
 
   el.href=cleanUrl;
-
   el.target='_blank';
-
   el.rel='noopener noreferrer';
-
   el.textContent=name;
-
   el.onclick=function(e){e.stopPropagation()};
-
   el.className='track-platform';
 
   return el;
-
 }
 
 function appendPlatform(links,name,url){
@@ -876,7 +855,7 @@ function albumRow(album){
       '<div class="track-platforms album-platforms"></div>'+
       '<div class="album-track-list"></div>'+
     '</div>'+
-    '<div class="track-buy">'+
+    '<div class="track-buy album-buy">'+
       '<p class="track-price album-price"></p>'+
       '<p class="track-quality">Complete album WAV</p>'+
       '<button class="tbtn addAlbumBtn" type="button"></button>'+
@@ -923,17 +902,23 @@ function albumRow(album){
     album.tracks.forEach(function(t){
       var item=document.createElement('div');
       var trackAdded=isTrackInCart(t.id);
+      var miniPlatforms;
+      var addTrackBtn;
 
-      item.className='album-track-item';
+      item.className='album-track-item track';
+      item.setAttribute('data-track-id',t.id);
+
       item.innerHTML=
-        '<div>'+
+        '<div class="album-track-main">'+
           '<p class="album-track-title"></p>'+
           '<p class="album-track-meta"></p>'+
           '<div class="album-track-platforms"></div>'+
+          '<div class="track-wave album-track-wave">'+
+            '<div class="track-waveform"></div>'+
+          '</div>'+
         '</div>'+
         '<div class="album-track-actions">'+
           '<span class="album-track-price"></span>'+
-          '<button class="admin-mini-btn albumTrackPreview" type="button">Preview</button>'+
           '<button class="admin-mini-btn albumTrackAdd" type="button"></button>'+
         '</div>';
 
@@ -941,7 +926,7 @@ function albumRow(album){
       item.querySelector('.album-track-meta').textContent=[t.genre,t.key,t.bpm?String(t.bpm)+' BPM':'',t.duration].filter(Boolean).join(' · ');
       item.querySelector('.album-track-price').textContent=money(price(t));
 
-      var miniPlatforms=item.querySelector('.album-track-platforms');
+      miniPlatforms=item.querySelector('.album-track-platforms');
 
       appendPlatform(miniPlatforms,'SoundCloud',t.soundcloud);
       appendPlatform(miniPlatforms,'Spotify',t.spotify);
@@ -950,15 +935,32 @@ function albumRow(album){
       appendPlatform(miniPlatforms,'YouTube',t.youtube);
       appendPlatform(miniPlatforms,'Beatport',t.beatport);
 
-      item.querySelector('.albumTrackPreview').onclick=function(e){
+      addTrackBtn=item.querySelector('.albumTrackAdd');
+      addTrackBtn.textContent=trackAdded?'Added':'Add Track';
+      addTrackBtn.classList.toggle('added',trackAdded);
+
+      item.onclick=function(e){
+        if(e.target.closest('button')||e.target.closest('a')){
+          return;
+        }
+
         e.stopPropagation();
+        clearDeepLinkHighlight();
         togglePreview(t);
       };
 
-      item.querySelector('.albumTrackAdd').textContent=trackAdded?'Added':'Add Track';
-      item.querySelector('.albumTrackAdd').classList.toggle('added',trackAdded);
+      item.querySelector('.album-track-wave').onclick=function(e){
+        e.stopPropagation();
 
-      item.querySelector('.albumTrackAdd').onclick=function(e){
+        if(currentPreviewTrackId===t.id&&currentWaveSurfer&&!currentWaveSurfer.isPlaying()){
+          playCurrent();
+          return;
+        }
+
+        togglePreview(t);
+      };
+
+      addTrackBtn.onclick=function(e){
         e.stopPropagation();
 
         var key=cartKey('track',t.id);
@@ -1003,7 +1005,7 @@ function albumRow(album){
   };
 
   wrap.onclick=function(e){
-    if(e.target.closest('button')||e.target.closest('a')){
+    if(e.target.closest('button')||e.target.closest('a')||e.target.closest('.album-track-item')){
       return;
     }
 
@@ -1019,38 +1021,6 @@ function albumRow(album){
   return wrap;
 }
 
-function ensureAlbumStyles(){
-  if(document.getElementById('albumStyles'))return;
-
-  var style=document.createElement('style');
-
-  style.id='albumStyles';
-  style.textContent=
-    '.album-release{cursor:pointer;align-items:flex-start;transition:border-color .22s ease,background .22s ease,transform .22s ease,box-shadow .22s ease;}'+
-    '.album-release:hover{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.055);box-shadow:0 18px 48px rgba(0,0,0,.28);}'+
-    '.album-release .track-body{min-width:0;}'+
-    '.album-release .track-buy{gap:10px;align-self:flex-start;padding-top:0;}'+
-    '.album-description{margin:12px 0 0;color:rgba(255,255,255,.62);line-height:1.5;max-width:680px;}'+
-    '.album-listen{margin-top:18px;}'+
-    '.album-platforms{margin-top:8px;}'+
-    '.album-platform-empty{pointer-events:none;opacity:.55;}'+
-    '.album-track-list{margin-top:22px;gap:10px;}'+
-    '.album-track-item{display:flex;justify-content:space-between;gap:18px;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.035);padding:12px 14px;transition:border-color .2s ease,background .2s ease,transform .2s ease;}'+
-    '.album-track-item:hover{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.075);transform:translateX(3px);}'+
-    '.album-track-title{margin:0;color:#fff;font-weight:700;}'+
-    '.album-track-meta{margin:5px 0 0;color:rgba(255,255,255,.54);font-size:.86rem;}'+
-    '.album-track-platforms{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;}'+
-    '.album-track-platforms .track-platform{font-size:.58rem;padding:5px 8px 4px;}'+
-    '.album-track-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}'+
-    '.album-track-price{color:#fff;font-weight:700;white-space:nowrap;}'+
-    '.admin-mini-btn{border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.035);color:rgba(255,255,255,.72);padding:7px 10px 6px;font-size:.64rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .2s ease,border-color .2s ease,color .2s ease;}'+
-    '.admin-mini-btn:hover{color:#fff;background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.28);}'+
-    '.admin-mini-btn.added{background:rgba(85,255,140,.12);border-color:rgba(85,255,140,.28);color:rgba(190,255,210,.95);}'+
-    '@media(max-width:760px){.album-release{grid-template-columns:84px 1fr;}.album-release .track-buy{grid-column:1/-1;align-items:flex-start;text-align:left;}.album-track-item{align-items:flex-start;flex-direction:column;}.album-track-actions{justify-content:flex-start;}}';
-
-  document.head.appendChild(style);
-}
-
 function renderCatalog(cat){
   var c=id('catalog');
 
@@ -1061,8 +1031,6 @@ function renderCatalog(cat){
   c.innerHTML='';
 
   if(cat==='album'){
-    ensureAlbumStyles();
-
     if(!albums.length){
       c.innerHTML='<p class="cart-empty">No albums available yet.</p>';
       updateTrackStates();
@@ -1193,7 +1161,6 @@ function bind(){
   if(id('checkoutBtn')){
     id('checkoutBtn').onclick=function(){
       if(!cart.length){
-        console.warn('Checkout skipped: cart is empty');
         return;
       }
 
@@ -1208,11 +1175,7 @@ function bind(){
         };
       }).filter(Boolean);
 
-      console.log('cart:',cart);
-      console.log('checkout items:',items);
-
       if(!items.length){
-        console.warn('Checkout skipped: no selected items have stripePriceId');
         return;
       }
 
@@ -1228,13 +1191,9 @@ function bind(){
       .then(function(data){
         if(data&&data.url){
           window.location.href=data.url;
-        }else{
-          console.error('Checkout failed: missing url in response',data);
         }
       })
-      .catch(function(err){
-        console.error('Checkout failed',err);
-      })
+      .catch(function(err){})
     };
   }
 
