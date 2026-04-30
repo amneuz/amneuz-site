@@ -373,19 +373,31 @@ function openTrackDeepLink(){
 }
 
 function updateTrackStates(){
-  all('.track,.album-track').forEach(function(r){
-    var active=r.getAttribute('data-track-id')===currentPreviewTrackId;
+
+  all('.track[data-track-id],.album-track[data-track-id]').forEach(function(r){
+
+    var trackId=r.getAttribute('data-track-id');
+
+    var active=trackId&&trackId===currentPreviewTrackId;
+
     var playing=active&&currentWaveSurfer&&currentWaveSurfer.isPlaying();
+
     var b=r.querySelector('.track-play');
 
-    r.classList.toggle('active',active);
+    r.classList.toggle('active',!!active);
+
     r.classList.toggle('playing',!!playing);
 
     if(b){
+
       b.classList.toggle('is-playing',!!playing);
+
       b.setAttribute('aria-label',playing?'Pause preview':'Play preview');
+
     }
+
   })
+
 }
 
 function pauseAmbientForPreview(){
