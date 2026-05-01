@@ -5,6 +5,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const BASE_URL = 'https://amneuz.com';
+const FALLBACK_IMAGE = `${BASE_URL}/amneuz.jpg`;
+
 function formatTitle(item) {
   const artist = item.artist || 'Amneuz';
   const collaborators = item.collaborators || '';
@@ -15,6 +18,156 @@ function formatTitle(item) {
   }
 
   return `${artist} - ${title}`;
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function slugify(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function absoluteUrl(value) {
+  const clean = String(value || '').trim();
+
+  if (/^https?:\/\//i.test(clean)) {
+    return clean;
+  }
+
+  if (clean.charAt(0) === '/') {
+    return `${BASE_URL}${clean}`;
+  }
+
+  return FALLBACK_IMAGE;
+}
+
+function imageType(url) {
+  const clean = String(url || '').split('?')[0].toLowerCase();
+
+  if (clean.endsWith('.png')) return 'image/png';
+  if (clean.endsWith('.webp')) return 'image/webp';
+
+  return 'image/jpeg';
+}
+
+function shareCandidates(track) {
+  return [
+    track.id,
+    track.legacy_id,
+    track.catalog_code,
+    track.slug,
+    slugify(track.title),
+    slugify(formatTitle(track))
+  ].filter(Boolean).map(function(value) {
+    return String(value).toLowerCase();
+  });
+}
+
+function noindexHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Track not found · AMNEUZ</title>
+</head>
+<body>
+  <p>Track not found.</p>
+</body>
+</html>`;
+}
+
+async function handleShareTrack(req, res, shareParam) {
+  const normalizedShare = String(shareParam || '').trim().toLowerCase();
+
+  const { data, error } = await supabaseAdmin
+    .from('tracks')
+    .select(`
+      id,
+      legacy_id,
+      catalog_code,
+      slug,
+      title,
+      artist,
+      collaborators,
+      category,
+      subgenre,
+      track_key,
+      bpm,
+      release_date,
+      release_year,
+      cover_url,
+      status,
+      is_latest_release,
+      description_short
+    `)
+    .or('status.eq.visible,and(status.eq.upcoming,is_latest_release.eq.true)');
+
+  if (error) {
+    throw error;
+  }
+
+  const track = (data || []).find(function(item) {
+    return shareCandidates(item).indexOf(normalizedShare) > -1;
+  });
+
+  if (!track) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(404).send(noindexHtml());
+  }
+
+  const deepLinkId = track.slug || track.catalog_code || track.legacy_id || track.id;
+  const shareUrl = `${BASE_URL}/t/${encodeURIComponent(deepLinkId)}`;
+  const redirectPath = `/?track=${encodeURIComponent(deepLinkId)}`;
+  const redirectUrl = `${BASE_URL}${redirectPath}`;
+  const title = formatTitle(track);
+  const description = track.status === 'upcoming' && track.is_latest_release
+    ? `Next Release · ${track.subgenre || 'AMNEUZ'}`
+    : `Official AMNEUZ release · ${track.subgenre || 'AMNEUZ'}`;
+  const image = absoluteUrl(track.cover_url);
+  const type = imageType(image);
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=86400');
+
+  return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <meta property="og:type" content="music.song">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:image" content="${escapeHtml(image)}">
+  <meta property="og:image:secure_url" content="${escapeHtml(image)}">
+  <meta property="og:image:type" content="${escapeHtml(type)}">
+  <meta property="og:url" content="${escapeHtml(shareUrl)}">
+  <meta property="og:site_name" content="AMNEUZ">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${escapeHtml(image)}">
+  <link rel="canonical" href="${escapeHtml(shareUrl)}">
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}">
+  <script>window.location.replace('${escapeHtml(redirectPath)}');</script>
+</head>
+<body>
+  <p><a href="${escapeHtml(redirectPath)}">Open ${escapeHtml(title)}</a></p>
+</body>
+</html>`);
 }
 
 function mapTrack(track) {
@@ -177,6 +330,12 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const shareParam = req.query && req.query.share ? String(req.query.share).trim() : '';
+
+    if (shareParam) {
+      return handleShareTrack(req, res, shareParam);
+    }
+
     const tracks = await getVisibleTracks();
     const albumsRaw = await getVisibleAlbums();
 

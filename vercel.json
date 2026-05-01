@@ -44,6 +44,18 @@
 
     }
 
+  ],
+
+  "rewrites": [
+
+    {
+
+      "source": "/t/:track",
+
+      "destination": "/api/tracks?share=:track"
+
+    }
+
   ]
 
 }
