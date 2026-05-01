@@ -1526,11 +1526,25 @@ function renderCatalog(cat){
     return;
   }
 
-  tracks
-    .filter(function(t){return t.category===cat&&t.status!=='upcoming'})
-    .forEach(function(t){
-      c.appendChild(row(t));
-    });
+ tracks
+
+  .filter(function(t){
+
+    var releaseDate=t.releaseDate||'';
+
+    var hasDate=!!releaseDate;
+
+    var isFuture=hasDate&&new Date(releaseDate)>new Date();
+
+    return t.category===cat&&t.status==='visible'&&!isFuture;
+
+  })
+
+  .forEach(function(t){
+
+    c.appendChild(row(t));
+
+  });
 
   updateTrackStates();
 }
