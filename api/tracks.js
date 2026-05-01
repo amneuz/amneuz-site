@@ -109,6 +109,7 @@ async function handleShareTrack(req, res, shareParam) {
       release_date,
       release_year,
       cover_url,
+      social_cover_url,
       status,
       is_latest_release,
       description_short
