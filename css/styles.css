@@ -1534,3 +1534,27 @@
     letter-spacing:.07em;
   }
 }
+
+.album-track.track-deeplink{
+  border-color:rgba(120,160,255,.7)!important;
+  background:rgba(255,255,255,.07);
+  box-shadow:
+    0 0 0 1px rgba(120,160,255,.24),
+    0 0 34px rgba(120,160,255,.2),
+    0 18px 48px rgba(0,0,0,.28)!important;
+}
+
+.album-track.playing.track-deeplink{
+  border-color:rgba(103,174,135,.5)!important;
+  box-shadow:0 18px 48px rgba(0,0,0,.28)!important;
+}
+
+@media(max-width:560px){
+  .album-track.track-deeplink{
+    border-color:rgba(120,160,255,.68)!important;
+    box-shadow:
+      0 0 0 1px rgba(120,160,255,.22),
+      0 0 28px rgba(120,160,255,.18),
+      0 16px 42px rgba(0,0,0,.26)!important;
+  }
+}
