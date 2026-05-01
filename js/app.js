@@ -1292,6 +1292,13 @@ function renderNextRelease(){
   var quality=document.createElement('p');
   var add=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
+  const hasDate = !!releaseDate;
+
+const isFuture = hasDate && new Date(releaseDate) > new Date();
+
+const isVisible = item.status === 'visible';
+
+const canPurchase = isVisible && !isFuture;
   var state=releaseState(releaseDate);
   var nextReleaseWaveHeight=window.matchMedia&&window.matchMedia('(max-width:760px)').matches?54:72;
 
@@ -1346,7 +1353,7 @@ function renderNextRelease(){
   platforms.className='track-platforms next-release-platforms';
   stream.className='next-release-stream';
 
-  if(state.isReleased){
+  if(canPurchase){
     appendPlatform(platforms,'SoundCloud',item.soundcloud);
     appendPlatform(platforms,'Spotify',item.spotify);
     appendPlatform(platforms,'Apple Music',item.appleMusic);
@@ -1355,27 +1362,41 @@ function renderNextRelease(){
     appendPlatform(platforms,'Beatport',item.beatport);
   }
 
-  if(!state.isReleased){
-    var platformEmpty=document.createElement('p');
+  if(!canPurchase && isFuture){
 
-    platformEmpty.className='next-release-platform-empty';
-    platformEmpty.textContent='Streaming links available on release day';
-    platforms.appendChild(platformEmpty);
+  // solo cuando realmente es futuro
 
-    ['SoundCloud','Spotify','Apple Music','Tidal','YouTube'].forEach(function(name){
-      var locked=document.createElement('span');
+  var platformEmpty=document.createElement('p');
 
-      locked.className='track-platform next-release-platform-locked';
-      locked.textContent=name;
-      platforms.appendChild(locked);
-    });
-  }else if(!platforms.children.length){
-    var platformSoon=document.createElement('p');
+  platformEmpty.className='next-release-platform-empty';
 
-    platformSoon.className='next-release-platform-empty';
-    platformSoon.textContent='Streaming links coming soon';
-    platforms.appendChild(platformSoon);
-  }
+  platformEmpty.textContent='Streaming links available on release day';
+
+  platforms.appendChild(platformEmpty);
+
+  ['SoundCloud','Spotify','Apple Music','Tidal','YouTube'].forEach(function(name){
+
+    var locked=document.createElement('span');
+
+    locked.className='track-platform next-release-platform-locked';
+
+    locked.textContent=name;
+
+    platforms.appendChild(locked);
+
+  });
+
+}else if(!platforms.children.length){
+
+  var platformSoon=document.createElement('p');
+
+  platformSoon.className='next-release-platform-empty';
+
+  platformSoon.textContent='Streaming links coming soon';
+
+  platforms.appendChild(platformSoon);
+
+}
 
   buy.className='next-release-buy';
   priceEl.className='track-price next-release-price';
@@ -1384,10 +1405,23 @@ function renderNextRelease(){
   quality.textContent='High-quality WAV';
   add.className='tbtn next-release-add';
   add.type='button';
-  add.disabled=!state.isReleased;
-  add.textContent=state.isReleased
-    ? (candidate.type==='album'?(isAlbumInCart(item.id)?'Album Added':'Add Album'):(isTrackInCart(item.id)?'Added':'Add to Cart'))
-    : 'Available Soon';
+
+
+add.disabled = !canPurchase;
+
+if (canPurchase) {
+
+  add.textContent = candidate.type === 'album'
+
+    ? (isAlbumInCart(item.id) ? 'Album Added' : 'Add Album')
+
+    : (isTrackInCart(item.id) ? 'Added' : 'Add to Cart');
+
+} else {
+
+  add.textContent = 'Available Soon';
+
+}
 
   wave.appendChild(waveform);
   preview.appendChild(play);
@@ -1402,7 +1436,7 @@ function renderNextRelease(){
   content.appendChild(metaLine);
   content.appendChild(preview);
   content.appendChild(release);
-  if(state.isFuture)content.appendChild(countdown);
+  if(isFuture) content.appendChild(countdown);
   content.appendChild(stream);
   media.appendChild(cover);
   card.appendChild(content);
@@ -1439,7 +1473,7 @@ function renderNextRelease(){
   add.onclick=function(e){
     e.stopPropagation();
 
-    if(!state.isReleased)return;
+    if(!canPurchase)return;
 
     var key=cartKey(candidate.type,item.id);
 
