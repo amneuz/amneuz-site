@@ -1238,8 +1238,18 @@ function syncNextReleaseTab(){
   var nextTab=document.querySelector('.tab[data-cat="next-release"]');
   var remixTab=document.querySelector('.tab[data-cat="remixes"]');
   var exists=hasNextRelease();
+  var candidate=nextReleaseCandidate();
+
+var releaseDate=candidate&&candidate.item
+
+  ? (candidate.item.releaseDate||(candidate.previewTrack&&candidate.previewTrack.releaseDate)||'')
+
+  : '';
+
+var releaseInfo=releaseState(releaseDate);
 
   if(!nextTab)return;
+  nextTab.textContent=releaseInfo.isFuture?'Next Release':'Last Release';
 
   nextTab.hidden=!exists;
 
@@ -1312,7 +1322,7 @@ const canPurchase = isVisible && !isFuture;
   cover.alt=item.title;
 
   badge.className='next-release-badge';
-  badge.textContent='New Release';
+  badge.textContent=isFuture?'Next Release':'Last Release';
 
   title.className='next-release-title';
   title.textContent=item.title;
