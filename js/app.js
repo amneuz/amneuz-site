@@ -244,7 +244,10 @@ function loadTracks(){
         .then(function(data){
           setTracksFromData(data)
         })
-        .catch(function(err){})
+        .catch(function(err){
+          var c=id('catalog');
+          if(c)c.innerHTML='<p class="cart-empty">No se pudo cargar el catálogo. Recarga la página.</p>';
+        })
     })
 }
 
@@ -379,31 +382,20 @@ function openTrackDeepLink(){
 }
 
 function updateTrackStates(){
-
   all('.track[data-track-id],.album-track[data-track-id]').forEach(function(r){
-
     var trackId=r.getAttribute('data-track-id');
-
     var active=trackId&&trackId===currentPreviewTrackId;
-
     var playing=active&&currentWaveSurfer&&currentWaveSurfer.isPlaying();
-
     var b=r.querySelector('.track-play');
 
     r.classList.toggle('active',!!active);
-
     r.classList.toggle('playing',!!playing);
 
     if(b){
-
       b.classList.toggle('is-playing',!!playing);
-
       b.setAttribute('aria-label',playing?'Pause preview':'Play preview');
-
     }
-
   })
-
 }
 
 function pauseAmbientForPreview(){
@@ -457,19 +449,14 @@ function playCurrent(){
 }
 
 function closePreview(){
-
   clearInterval(previewFade);
 
   previewSwitching=true;
 
   if(currentWaveSurfer){
-
     currentWaveSurfer.pause();
-
     currentWaveSurfer.destroy();
-
     currentWaveSurfer=null;
-
   }
 
   previewSwitching=false;
@@ -478,21 +465,15 @@ function closePreview(){
   currentPreviewPersistent=false;
 
   all('.track-waveform').forEach(function(w){
-
     w.innerHTML='';
-
   });
 
   all('.track,.album-track').forEach(function(x){
-
     x.classList.remove('active','playing','loading');
-
   });
 
   resumeAmbientAfterPreview();
-
   updateTrackStates();
-
 }
 
 function togglePreview(t){
@@ -1240,24 +1221,21 @@ function syncNextReleaseTab(){
   var exists=hasNextRelease();
   var candidate=nextReleaseCandidate();
 
-var releaseDate=candidate&&candidate.item
+  var releaseDate=candidate&&candidate.item
+    ?(candidate.item.releaseDate||(candidate.previewTrack&&candidate.previewTrack.releaseDate)||'')
+    :'';
 
-  ? (candidate.item.releaseDate||(candidate.previewTrack&&candidate.previewTrack.releaseDate)||'')
-
-  : '';
-
-var releaseInfo=releaseState(releaseDate);
+  var releaseInfo=releaseState(releaseDate);
 
   if(!nextTab)return;
-  nextTab.textContent=releaseInfo.isFuture?'Next Release':'Last Release';
 
+  nextTab.textContent=releaseInfo.isFuture?'Next Release':'Last Release';
   nextTab.hidden=!exists;
 
   if(exists){
     if(!document.querySelector('.tab.active')){
       nextTab.classList.add('active');
     }
-
     return;
   }
 
@@ -1276,7 +1254,6 @@ function renderNextRelease(){
   var candidate=nextReleaseCandidate();
 
   if(!c)return;
-
   if(!candidate)return;
 
   var item=candidate.item;
@@ -1302,13 +1279,10 @@ function renderNextRelease(){
   var quality=document.createElement('p');
   var add=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
-  const hasDate = !!releaseDate;
-
-const isFuture = hasDate && new Date(releaseDate) > new Date();
-
-const isVisible = item.status === 'visible';
-
-const canPurchase = isVisible && !isFuture;
+  var hasDate=!!releaseDate;
+  var isFuture=hasDate&&new Date(releaseDate)>new Date();
+  var isVisible=item.status==='visible';
+  var canPurchase=isVisible&&!isFuture;
   var state=releaseState(releaseDate);
   var nextReleaseWaveHeight=window.matchMedia&&window.matchMedia('(max-width:760px)').matches?54:72;
 
@@ -1329,8 +1303,8 @@ const canPurchase = isVisible && !isFuture;
 
   metaLine.className='next-release-meta';
   metaLine.textContent=candidate.type==='album'
-    ? [(item.releaseType||'album').toUpperCase(),item.tracks&&item.tracks.length?item.tracks.length+' tracks':'',item.release||''].filter(Boolean).join(' · ')
-    : [item.genre,item.bpm?String(item.bpm)+' BPM':'',item.key].filter(Boolean).join(' · ');
+    ?[(item.releaseType||'album').toUpperCase(),item.tracks&&item.tracks.length?item.tracks.length+' tracks':'',item.release||''].filter(Boolean).join(' · ')
+    :[item.genre,item.bpm?String(item.bpm)+' BPM':'',item.key].filter(Boolean).join(' · ');
 
   release.className='next-release-date';
   release.textContent=state.hasDate?(state.isReleased?'Available now':'Available on '+formatReleaseDate(releaseDate)):'Release date coming soon';
@@ -1372,41 +1346,24 @@ const canPurchase = isVisible && !isFuture;
     appendPlatform(platforms,'Beatport',item.beatport);
   }
 
-  if(!canPurchase && isFuture){
+  if(!canPurchase&&isFuture){
+    var platformEmpty=document.createElement('p');
+    platformEmpty.className='next-release-platform-empty';
+    platformEmpty.textContent='Streaming links available on release day';
+    platforms.appendChild(platformEmpty);
 
-  // solo cuando realmente es futuro
-
-  var platformEmpty=document.createElement('p');
-
-  platformEmpty.className='next-release-platform-empty';
-
-  platformEmpty.textContent='Streaming links available on release day';
-
-  platforms.appendChild(platformEmpty);
-
-  ['SoundCloud','Spotify','Apple Music','Tidal','YouTube'].forEach(function(name){
-
-    var locked=document.createElement('span');
-
-    locked.className='track-platform next-release-platform-locked';
-
-    locked.textContent=name;
-
-    platforms.appendChild(locked);
-
-  });
-
-}else if(!platforms.children.length){
-
-  var platformSoon=document.createElement('p');
-
-  platformSoon.className='next-release-platform-empty';
-
-  platformSoon.textContent='Streaming links coming soon';
-
-  platforms.appendChild(platformSoon);
-
-}
+    ['SoundCloud','Spotify','Apple Music','Tidal','YouTube'].forEach(function(name){
+      var locked=document.createElement('span');
+      locked.className='track-platform next-release-platform-locked';
+      locked.textContent=name;
+      platforms.appendChild(locked);
+    });
+  }else if(!platforms.children.length){
+    var platformSoon=document.createElement('p');
+    platformSoon.className='next-release-platform-empty';
+    platformSoon.textContent='Streaming links coming soon';
+    platforms.appendChild(platformSoon);
+  }
 
   buy.className='next-release-buy';
   priceEl.className='track-price next-release-price';
@@ -1415,23 +1372,15 @@ const canPurchase = isVisible && !isFuture;
   quality.textContent='High-quality WAV';
   add.className='tbtn next-release-add';
   add.type='button';
+  add.disabled=!canPurchase;
 
-
-add.disabled = !canPurchase;
-
-if (canPurchase) {
-
-  add.textContent = candidate.type === 'album'
-
-    ? (isAlbumInCart(item.id) ? 'Album Added' : 'Add Album')
-
-    : (isTrackInCart(item.id) ? 'Added' : 'Add to Cart');
-
-} else {
-
-  add.textContent = 'Available Soon';
-
-}
+  if(canPurchase){
+    add.textContent=candidate.type==='album'
+      ?(isAlbumInCart(item.id)?'Album Added':'Add Album')
+      :(isTrackInCart(item.id)?'Added':'Add to Cart');
+  }else{
+    add.textContent='Available Soon';
+  }
 
   wave.appendChild(waveform);
   preview.appendChild(play);
@@ -1446,7 +1395,7 @@ if (canPurchase) {
   content.appendChild(metaLine);
   content.appendChild(preview);
   content.appendChild(release);
-  if(isFuture) content.appendChild(countdown);
+  if(isFuture)content.appendChild(countdown);
   content.appendChild(stream);
   media.appendChild(cover);
   card.appendChild(content);
@@ -1536,25 +1485,16 @@ function renderCatalog(cat){
     return;
   }
 
- tracks
-
-  .filter(function(t){
-
-    var releaseDate=t.releaseDate||'';
-
-    var hasDate=!!releaseDate;
-
-    var isFuture=hasDate&&new Date(releaseDate)>new Date();
-
-    return t.category===cat&&t.status==='visible'&&!isFuture;
-
-  })
-
-  .forEach(function(t){
-
-    c.appendChild(row(t));
-
-  });
+  tracks
+    .filter(function(t){
+      var releaseDate=t.releaseDate||'';
+      var hasDate=!!releaseDate;
+      var isFuture=hasDate&&new Date(releaseDate)>new Date();
+      return t.category===cat&&t.status==='visible'&&!isFuture;
+    })
+    .forEach(function(t){
+      c.appendChild(row(t));
+    });
 
   updateTrackStates();
 }
@@ -1609,7 +1549,6 @@ function submitBooking(e){
   var body=fields.map(function(name){
     var el=form.elements[name];
     var value=el?el.value.trim():'';
-
     return name+': '+(value||'');
   }).join('\n');
 
@@ -1624,7 +1563,6 @@ function bind(){
   if(id('streamButton')){
     id('streamButton').onclick=function(e){
       e.stopPropagation();
-
       if(id('streamPanel'))id('streamPanel').classList.toggle('open');
     };
   }
@@ -1636,7 +1574,6 @@ function bind(){
   document.addEventListener('click',function(e){
     var p=id('streamPanel');
     var b=id('streamButton');
-
     if(p&&b&&!p.contains(e.target)&&e.target!==b)p.classList.remove('open');
   });
 
@@ -1650,7 +1587,6 @@ function bind(){
   if(id('cartTrigger')){
     id('cartTrigger').onclick=function(){
       if(id('cart'))id('cart').classList.toggle('show');
-
       document.body.classList.toggle('cart-open',!!(id('cart')&&id('cart').classList.contains('show')));
     };
   }
@@ -1658,7 +1594,6 @@ function bind(){
   if(id('cartClose')){
     id('cartClose').onclick=function(){
       if(id('cart'))id('cart').classList.remove('show');
-
       document.body.classList.remove('cart-open');
     };
   }
@@ -1671,9 +1606,7 @@ function bind(){
 
       var items=cart.map(function(cartItem){
         var itemData=getCartItemData(cartItem);
-
         if(!itemData||!itemData.stripePriceId)return null;
-
         return {
           type:itemData.type,
           priceId:itemData.stripePriceId
@@ -1681,12 +1614,8 @@ function bind(){
       }).filter(Boolean);
 
       if(!items.length){
-
-  alert('No hay productos válidos en tu carrito. Intenta quitar y volver a agregar el track.');
-
-  return;
-
-
+        alert('No hay productos válidos en tu carrito. Intenta quitar y volver a agregar el track.');
+        return;
       }
 
       fetch('/api/create-checkout-session',{
@@ -1704,12 +1633,9 @@ function bind(){
         }
       })
       .catch(function(err){
-
-  console.error('Checkout error:', err);
-
-  alert('Hubo un error al procesar tu orden. Intenta de nuevo. Si el problema continúa, contáctame por Instagram o email.');
-
-})
+        console.error('Checkout error:',err);
+        alert('Hubo un error al procesar tu orden. Intenta de nuevo. Si el problema continúa, contáctame por Instagram o email.');
+      });
     };
   }
 
@@ -1730,9 +1656,5 @@ setAmbient(false);
 bind();
 skipIntro();
 loadTracks();
-
-console.assert(!!id('intro'),'intro exists');
-console.assert(!!id('catalog'),'catalog exists');
-console.assert(typeof renderCatalog==='function','catalog renderer exists');
 
 })();
