@@ -9,7 +9,7 @@ const supabaseAdmin = createClient(
 );
 
 const rateLimitStore = new Map();
-const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_MAX = 50;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
 const ALLOWED_ITEM_TYPES = ['track', 'album'];
@@ -72,7 +72,7 @@ function validateBasicItems(items) {
   return (
     Array.isArray(items) &&
     items.length > 0 &&
-    items.length <= 10 &&
+    items.length <= 50 &&
     items.every(function(item) {
       return (
         item &&
