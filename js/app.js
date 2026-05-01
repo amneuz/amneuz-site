@@ -365,7 +365,11 @@ function openTrackDeepLink(){
 
   enter(false);
 
-  var targetCat=isCurrentNextReleaseTrack(target)?'next-release':target.category;
+  var targetCat=isCurrentNextReleaseTrack(target)?'next-release':(target.albumId?'album':target.category);
+
+  if(targetCat==='album'&&target.albumId&&openAlbumIds.indexOf(target.albumId)===-1){
+    openAlbumIds.push(target.albumId);
+  }
 
   all('.tab').forEach(function(tab){
     tab.classList.toggle('active',tab.getAttribute('data-cat')===targetCat)
@@ -374,9 +378,15 @@ function openTrackDeepLink(){
   renderCatalog(targetCat);
 
   window.requestAnimationFrame(function(){
-    var row=targetCat==='next-release'
-      ? document.querySelector('.next-release-card')||document.querySelector('.track[data-track-id="'+target.id+'"]')
-      : document.querySelector('.track[data-track-id="'+target.id+'"]');
+    var row;
+
+    if(targetCat==='next-release'){
+      row=document.querySelector('.next-release-card')||document.querySelector('.track[data-track-id="'+target.id+'"]');
+    }else if(targetCat==='album'){
+      row=document.querySelector('.album-track[data-track-id="'+target.id+'"]')||document.querySelector('.track[data-track-id="'+target.id+'"]');
+    }else{
+      row=document.querySelector('.track[data-track-id="'+target.id+'"]');
+    }
 
     if(!row)return;
 
