@@ -365,20 +365,40 @@ function openTrackDeepLink(){
 
   enter(false);
 
+  var targetCat=isCurrentNextReleaseTrack(target)?'next-release':target.category;
+
   all('.tab').forEach(function(tab){
-    tab.classList.toggle('active',tab.getAttribute('data-cat')===target.category)
+    tab.classList.toggle('active',tab.getAttribute('data-cat')===targetCat)
   });
 
-  renderCatalog(target.category);
+  renderCatalog(targetCat);
 
   window.requestAnimationFrame(function(){
-    var row=document.querySelector('.track[data-track-id="'+target.id+'"]');
+    var row=targetCat==='next-release'
+      ? document.querySelector('.next-release-card')||document.querySelector('.track[data-track-id="'+target.id+'"]')
+      : document.querySelector('.track[data-track-id="'+target.id+'"]');
 
     if(!row)return;
 
     row.scrollIntoView({behavior:'smooth',block:'center'});
     row.classList.add('track-deeplink');
   })
+}
+
+function isCurrentNextReleaseTrack(track){
+  var candidate=nextReleaseCandidate();
+
+  if(!candidate||!track){
+    return false;
+  }
+
+  var item=candidate.item;
+  var previewTrack=candidate.previewTrack;
+
+  return (
+    String(item&&item.id)===String(track.id)||
+    String(previewTrack&&previewTrack.id)===String(track.id)
+  );
 }
 
 function updateTrackStates(){
