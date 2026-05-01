@@ -31,6 +31,40 @@ function activeCat(){var a=document.querySelector('.tab.active');return a?a.getA
 function getTrackParam(){return new URLSearchParams(window.location.search).get('track')}
 function slugify(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
 
+function shareId(item){
+  return item.slug||item.catalogCode||item.id;
+}
+
+function shareUrl(item){
+  return 'https://www.amneuz.com/t/'+encodeURIComponent(shareId(item));
+}
+
+function copyShareLink(item,button){
+  var url=shareUrl(item);
+
+  function markCopied(){
+    var original=button.getAttribute('data-label')||button.textContent||'Share';
+
+    button.setAttribute('data-label',original);
+    button.textContent='Copied';
+    button.classList.add('copied');
+
+    setTimeout(function(){
+      button.textContent=original;
+      button.classList.remove('copied');
+    },1400);
+  }
+
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(markCopied).catch(function(){
+      window.prompt('Copy this link:',url);
+    });
+    return;
+  }
+
+  window.prompt('Copy this link:',url);
+}
+
 function cartKey(type,idValue){
   return String(type||'track')+':'+String(idValue||'');
 }
@@ -789,6 +823,7 @@ function row(t){
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
   var add=document.createElement('button');
+  var share=document.createElement('button');
   var added=isTrackInCart(t.id);
 
   r.className='track';
@@ -863,6 +898,11 @@ function row(t){
   add.textContent=added?'Added':'Add to Cart';
   add.classList.toggle('added',added);
 
+  share.className='track-share';
+  share.type='button';
+  share.textContent='Share';
+  share.setAttribute('aria-label','Copy share link');
+
   titleRow.appendChild(title);
   titleWrap.appendChild(label);
   titleWrap.appendChild(titleRow);
@@ -876,6 +916,7 @@ function row(t){
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
+  buy.appendChild(share);
   media.appendChild(cover);
   media.appendChild(play);
   r.appendChild(media);
@@ -909,6 +950,12 @@ function row(t){
     add.classList.add('added');
   };
 
+  share.onclick=function(e){
+    e.stopPropagation();
+    clearDeepLinkHighlight();
+    copyShareLink(t,share);
+  };
+
   return r;
 }
 
@@ -921,6 +968,7 @@ function albumTrackRow(t){
   var actions=document.createElement('div');
   var priceEl=document.createElement('p');
   var add=document.createElement('button');
+  var share=document.createElement('button');
   var expanded=document.createElement('div');
   var wave=document.createElement('div');
   var waveform=document.createElement('div');
@@ -955,6 +1003,11 @@ function albumTrackRow(t){
   add.textContent=added?'Added':'Add to Cart';
   add.classList.toggle('added',added);
 
+  share.className='track-share album-track-share';
+  share.type='button';
+  share.textContent='Share';
+  share.setAttribute('aria-label','Copy share link');
+
   expanded.className='album-track-expanded';
 
   wave.className='track-wave album-track-wave';
@@ -977,6 +1030,7 @@ function albumTrackRow(t){
 
   actions.appendChild(priceEl);
   actions.appendChild(add);
+  actions.appendChild(share);
 
   main.appendChild(info);
   main.appendChild(actions);
@@ -1035,6 +1089,12 @@ function albumTrackRow(t){
     renderCart();
     add.textContent='Added';
     add.classList.add('added');
+  };
+
+  share.onclick=function(e){
+    e.stopPropagation();
+    clearDeepLinkHighlight();
+    copyShareLink(t,share);
   };
 
   return item;
@@ -1308,6 +1368,42 @@ function renderNextRelease(){
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
   var add=document.createElement('button');
+  var share = document.createElement('button');
+
+share.className = 'track-share next-release-share';
+
+share.type = 'button';
+
+share.textContent = 'Share';
+
+share.onclick = function(e){
+
+  e.stopPropagation();
+
+  var id = item.slug || item.catalogCode || item.id;
+
+  var url = 'https://www.amneuz.com/t/' + encodeURIComponent(id);
+
+  if(navigator.clipboard){
+
+    navigator.clipboard.writeText(url);
+
+    share.textContent = 'Copied';
+
+    setTimeout(function(){
+
+      share.textContent = 'Share';
+
+    }, 1200);
+
+  } else {
+
+    window.prompt('Copy link:', url);
+
+  }
+
+};
+  var share=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
   var hasDate=!!releaseDate;
   var isFuture=hasDate&&new Date(releaseDate)>new Date();
@@ -1412,12 +1508,18 @@ function renderNextRelease(){
     add.textContent='Available Soon';
   }
 
+  share.className='track-share next-release-share';
+  share.type='button';
+  share.textContent='Share';
+  share.setAttribute('aria-label','Copy share link');
+
   wave.appendChild(waveform);
   preview.appendChild(play);
   preview.appendChild(wave);
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
+  buy.appendChild(share);
   stream.appendChild(listen);
   stream.appendChild(platforms);
   content.appendChild(badge);
@@ -1474,6 +1576,11 @@ function renderNextRelease(){
     renderCart();
     add.textContent=candidate.type==='album'?'Album Added':'Added';
     add.classList.add('added');
+  };
+
+  share.onclick=function(e){
+    e.stopPropagation();
+    copyShareLink(item,share);
   };
 }
 

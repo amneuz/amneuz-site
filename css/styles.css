@@ -1558,3 +1558,96 @@
       0 16px 42px rgba(0,0,0,.26)!important;
   }
 }
+
+.track-share{
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.035);
+  color:rgba(244,244,244,.66);
+  padding:8px 11px 7px;
+  font-size:.54rem;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:border-color .22s ease,background .22s ease,color .22s ease,transform .22s ease,box-shadow .22s ease;
+}
+
+.track-share:hover{
+  border-color:rgba(120,160,255,.45);
+  background:rgba(77,108,255,.1);
+  color:#fff;
+  transform:translateY(-1px);
+  box-shadow:0 0 20px rgba(120,160,255,.12);
+}
+
+.track-share.copied{
+  border-color:rgba(85,255,140,.34);
+  background:rgba(85,255,140,.1);
+  color:rgba(190,255,210,.96);
+}
+
+.next-release-share{
+  min-height:38px;
+  padding:10px 14px 8px;
+}
+
+.album-track-share{
+  min-height:32px;
+  padding:7px 10px 6px;
+  font-size:.48rem;
+}
+
+@media(max-width:560px){
+  .track-share{
+    padding:7px 10px 6px;
+    font-size:.48rem;
+    letter-spacing:.1em;
+  }
+
+  .next-release-share{
+    grid-column:1/-1;
+    width:auto;
+    min-width:142px;
+    max-width:168px;
+    justify-self:start;
+  }
+
+  .album-track-share{
+    min-height:32px;
+  }
+}
+.track-share {
+
+  border: 1px solid rgba(255,255,255,.14);
+
+  border-radius: 999px;
+
+  background: rgba(255,255,255,.035);
+
+  color: rgba(244,244,244,.66);
+
+  padding: 8px 11px;
+
+  font-size: .54rem;
+
+  font-weight: 800;
+
+  letter-spacing: .12em;
+
+  text-transform: uppercase;
+
+  cursor: pointer;
+
+}
+
+.track-share:hover {
+
+  border-color: rgba(120,160,255,.45);
+
+  background: rgba(77,108,255,.1);
+
+  color: #fff;
+
+}
