@@ -136,7 +136,7 @@ async function handleShareTrack(req, res, shareParam) {
   const description = track.status === 'upcoming' && track.is_latest_release
     ? `Next Release · ${track.subgenre || 'AMNEUZ'}`
     : `Official AMNEUZ release · ${track.subgenre || 'AMNEUZ'}`;
-  const image = absoluteUrl(track.cover_url);
+  const image = absoluteUrl(track.social_cover_url || track.cover_url);
   const type = imageType(image);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
