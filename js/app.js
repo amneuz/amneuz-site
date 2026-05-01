@@ -1681,7 +1681,12 @@ function bind(){
       }).filter(Boolean);
 
       if(!items.length){
-        return;
+
+  alert('No hay productos válidos en tu carrito. Intenta quitar y volver a agregar el track.');
+
+  return;
+
+
       }
 
       fetch('/api/create-checkout-session',{
@@ -1698,7 +1703,13 @@ function bind(){
           window.location.href=data.url;
         }
       })
-      .catch(function(err){})
+      .catch(function(err){
+
+  console.error('Checkout error:', err);
+
+  alert('Hubo un error al procesar tu orden. Intenta de nuevo. Si el problema continúa, contáctame por Instagram o email.');
+
+})
     };
   }
 
