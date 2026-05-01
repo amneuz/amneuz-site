@@ -152,14 +152,24 @@ async function handleShareTrack(req, res, shareParam) {
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:image" content="${escapeHtml(image)}">
+
   <meta property="og:image:secure_url" content="${escapeHtml(image)}">
+
   <meta property="og:image:type" content="${escapeHtml(type)}">
+
+  <meta property="og:image:width" content="1200">
+
+  <meta property="og:image:height" content="1200">
+
   <meta property="og:url" content="${escapeHtml(shareUrl)}">
   <meta property="og:site_name" content="AMNEUZ">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
-  <meta name="twitter:image" content="${escapeHtml(image)}">
+   <meta name="twitter:image" content="${escapeHtml(image)}">
+
+  <meta name="twitter:image:alt" content="Track cover artwork">
+
   <link rel="canonical" href="${escapeHtml(shareUrl)}">
   <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}">
   <script>window.location.replace('${escapeHtml(redirectPath)}');</script>
