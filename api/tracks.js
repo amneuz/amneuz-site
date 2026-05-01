@@ -5,7 +5,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const BASE_URL = 'https://amneuz.com';
+const BASE_URL = 'https://www.amneuz.com';
 const FALLBACK_IMAGE = `${BASE_URL}/amneuz.jpg`;
 
 function formatTitle(item) {
