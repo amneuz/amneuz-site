@@ -284,7 +284,7 @@ async function writeTrackAudit(admin, req, track, uploadedPath, publicUrl, strip
           public_url: publicUrl,
           social_uploaded_path: socialUploadedPath,
           social_public_url: socialPublicUrl,
-          social_cover_generated: true,
+          social_cover_generated: socialPublicUrl ? true : false,
           stripe_cover_synced: stripeSyncResult && stripeSyncResult.synced ? true : false,
           stripe_product_id: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : null,
           stripe_sync_reason: stripeSyncResult && stripeSyncResult.reason ? stripeSyncResult.reason : null
@@ -331,7 +331,8 @@ async function createSocialCoverBuffer(fileBuffer) {
     .rotate()
     .resize(1200, 1200, {
       fit: 'cover',
-      position: 'centre'
+      position: 'centre',
+      withoutEnlargement: true
     })
     .flatten({ background: '#050505' })
     .jpeg({
@@ -368,6 +369,28 @@ async function uploadToStorage(uploadedPath, fileBuffer, mimeType) {
   return uploadBufferToStorage(uploadedPath, fileBuffer, mimeType);
 }
 
+function runTrackPostUploadTasks(admin, req, track, uploadedPath, publicUrl, socialUploadedPath, socialPublicUrl) {
+  syncStripeTrackCover(track, publicUrl)
+    .then(function(stripeSyncResult) {
+      if (stripeSyncResult && stripeSyncResult.reason && stripeSyncResult.reason !== 'missing_stripe_product_id') {
+        console.error('Stripe cover sync failed after upload:', stripeSyncResult.reason);
+      }
+
+      return writeTrackAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult, socialUploadedPath, socialPublicUrl);
+    })
+    .catch(function(err) {
+      console.error('Stripe cover sync failed after upload:', err.message || err);
+
+      return writeTrackAudit(admin, req, track, uploadedPath, publicUrl, {
+        synced: false,
+        reason: err.message || 'stripe_cover_sync_failed'
+      }, socialUploadedPath, socialPublicUrl);
+    })
+    .catch(function(err) {
+      console.error('Admin track cover upload audit failed:', err.message || err);
+    });
+}
+
 async function handleTrackCoverUpload(admin, req, res, payload) {
   const track = await getTrack(payload.trackId);
 
@@ -386,23 +409,25 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
 
   try {
     publicUrl = await uploadToStorage(uploadedPath, payload.fileBuffer, payload.mimeType);
-    const socialBuffer = await createSocialCoverBuffer(payload.fileBuffer);
-    socialPublicUrl = await uploadBufferToStorage(socialUploadedPath, socialBuffer, 'image/jpeg');
   } catch (err) {
     console.error('Track cover upload failed:', err.message || err);
     return res.status(500).json({ error: 'Unable to upload cover' });
   }
 
-  const stripeSyncResult = await syncStripeTrackCover(track, publicUrl);
+  try {
+    const socialBuffer = await createSocialCoverBuffer(payload.fileBuffer);
+    socialPublicUrl = await uploadBufferToStorage(socialUploadedPath, socialBuffer, 'image/jpeg');
+  } catch (err) {
+    console.error('Social cover generation failed:', err.message || err);
+  }
 
   const updatePayload = {
     cover_url: publicUrl,
-    social_cover_url: socialPublicUrl,
     updated_at: new Date().toISOString()
   };
 
-  if (stripeSyncResult && stripeSyncResult.stripe_product_id && !track.stripe_product_id) {
-    updatePayload.stripe_product_id = stripeSyncResult.stripe_product_id;
+  if (socialPublicUrl) {
+    updatePayload.social_cover_url = socialPublicUrl;
   }
 
   const { data: updatedTrack, error: updateError } = await supabaseAdmin
@@ -417,19 +442,24 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
     return res.status(500).json({ error: 'Unable to update track cover' });
   }
 
-  await writeTrackAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult, socialUploadedPath, socialPublicUrl);
+  runTrackPostUploadTasks(admin, req, track, uploadedPath, publicUrl, socialPublicUrl ? socialUploadedPath : null, socialPublicUrl || null);
 
-  return res.status(200).json({
+  const responsePayload = {
     ok: true,
     resourceType: 'track',
     coverUrl: publicUrl,
-    socialCoverUrl: socialPublicUrl,
     path: uploadedPath,
-    socialPath: socialUploadedPath,
-    stripeCoverSynced: stripeSyncResult && stripeSyncResult.synced ? true : false,
-    stripeProductId: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : updatedTrack.stripe_product_id,
+    stripeCoverSynced: false,
+    stripeProductId: updatedTrack.stripe_product_id,
     track: updatedTrack
-  });
+  };
+
+  if (socialPublicUrl) {
+    responsePayload.socialCoverUrl = socialPublicUrl;
+    responsePayload.socialPath = socialUploadedPath;
+  }
+
+  return res.status(200).json(responsePayload);
 }
 
 async function handleAlbumCoverUpload(admin, req, res, payload) {
