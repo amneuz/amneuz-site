@@ -39,10 +39,29 @@ function shareUrl(item){
   return 'https://www.amneuz.com/t/'+encodeURIComponent(shareId(item));
 }
 
+function createShareButton(className){
+  var button=document.createElement('button');
+  button.className='track-share-icon '+(className||'');
+  button.type='button';
+  button.setAttribute('aria-label','Copy share link');
+  button.innerHTML='<span aria-hidden="true">↗</span>';
+  return button;
+}
+
 function copyShareLink(item,button){
   var url=shareUrl(item);
 
   function markCopied(){
+    if(button.classList.contains('track-share-icon')){
+      button.classList.add('copied');
+
+      setTimeout(function(){
+        button.classList.remove('copied');
+      },1400);
+
+      return;
+    }
+
     var original=button.getAttribute('data-label')||button.textContent||'Share';
 
     button.setAttribute('data-label',original);
@@ -823,7 +842,7 @@ function row(t){
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
   var add=document.createElement('button');
-  var share=document.createElement('button');
+  var share=createShareButton('track-title-share');
   var added=isTrackInCart(t.id);
 
   r.className='track';
@@ -898,12 +917,8 @@ function row(t){
   add.textContent=added?'Added':'Add to Cart';
   add.classList.toggle('added',added);
 
-  share.className='track-share';
-  share.type='button';
-  share.textContent='Share';
-  share.setAttribute('aria-label','Copy share link');
-
   titleRow.appendChild(title);
+  titleRow.appendChild(share);
   titleWrap.appendChild(label);
   titleWrap.appendChild(titleRow);
   titleWrap.appendChild(metaLine);
@@ -916,7 +931,6 @@ function row(t){
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
-  buy.appendChild(share);
   media.appendChild(cover);
   media.appendChild(play);
   r.appendChild(media);
@@ -968,7 +982,7 @@ function albumTrackRow(t){
   var actions=document.createElement('div');
   var priceEl=document.createElement('p');
   var add=document.createElement('button');
-  var share=document.createElement('button');
+  var share=createShareButton('album-track-share-icon');
   var expanded=document.createElement('div');
   var wave=document.createElement('div');
   var waveform=document.createElement('div');
@@ -1002,11 +1016,6 @@ function albumTrackRow(t){
   add.type='button';
   add.textContent=added?'Added':'Add to Cart';
   add.classList.toggle('added',added);
-
-  share.className='track-share album-track-share';
-  share.type='button';
-  share.textContent='Share';
-  share.setAttribute('aria-label','Copy share link');
 
   expanded.className='album-track-expanded';
 
@@ -1136,7 +1145,7 @@ function albumRow(album){
       '<p class="track-quality">Complete album WAV</p>'+
       '<button class="tbtn addAlbumBtn" type="button"></button>'+
       '<button class="tbtn albumToggleBtn" type="button"></button>'+
-      '<button class="track-share album-share" type="button" aria-label="Copy album share link">Share</button>'+
+      '<button class="track-share-icon album-share-icon" type="button" aria-label="Copy album share link"><span aria-hidden="true">↗</span></button>'+
     '</div>';
 
   wrap.querySelector('.album-cover').src=album.cover||(album.tracks[0]&&album.tracks[0].cover)||'';
@@ -1167,7 +1176,7 @@ function albumRow(album){
   var addBtn=wrap.querySelector('.addAlbumBtn');
   var toggleBtn=wrap.querySelector('.albumToggleBtn');
   var list=wrap.querySelector('.album-track-list');
-  var shareBtn=wrap.querySelector('.album-share');
+  var shareBtn=wrap.querySelector('.album-share-icon');
 
   addBtn.textContent=added?'Album Added':'Add Album';
   addBtn.classList.toggle('added',added);
@@ -1375,7 +1384,7 @@ function renderNextRelease(){
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
   var add=document.createElement('button');
-  var share=document.createElement('button');
+  var share=createShareButton('next-release-cover-share');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
   var hasDate=!!releaseDate;
   var isFuture=hasDate&&new Date(releaseDate)>new Date();
@@ -1480,18 +1489,12 @@ function renderNextRelease(){
     add.textContent='Available Soon';
   }
 
-  share.className='track-share next-release-share';
-  share.type='button';
-  share.textContent='Share';
-  share.setAttribute('aria-label','Copy share link');
-
   wave.appendChild(waveform);
   preview.appendChild(play);
   preview.appendChild(wave);
   buy.appendChild(priceEl);
   buy.appendChild(quality);
   buy.appendChild(add);
-  buy.appendChild(share);
   stream.appendChild(listen);
   stream.appendChild(platforms);
   content.appendChild(badge);
@@ -1502,6 +1505,7 @@ function renderNextRelease(){
   if(isFuture)content.appendChild(countdown);
   content.appendChild(stream);
   media.appendChild(cover);
+  media.appendChild(share);
   card.appendChild(content);
   card.appendChild(media);
   card.appendChild(buy);
