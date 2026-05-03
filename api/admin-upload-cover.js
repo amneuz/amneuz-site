@@ -295,7 +295,9 @@ async function writeTrackAudit(admin, req, track, uploadedPath, publicUrl, strip
   }
 }
 
-async function writeAlbumAudit(admin, req, album, uploadedPath, publicUrl, stripeSyncResult) {
+async function writeAlbumAudit(admin, req, album, uploadedPath, publicUrl, stripeSyncResult, propagationMeta) {
+  const meta = propagationMeta || {};
+
   try {
     await supabaseAdmin
       .from('admin_audit_logs')
@@ -316,6 +318,12 @@ async function writeAlbumAudit(admin, req, album, uploadedPath, publicUrl, strip
           release_type: album.release_type,
           uploaded_path: uploadedPath,
           public_url: publicUrl,
+          propagated_track_count: meta.propagatedTrackCount || 0,
+          social_public_url: meta.socialPublicUrl || null,
+          social_uploaded_path: meta.socialUploadedPath || null,
+          social_generation_failed: meta.socialGenerationFailed ? true : false,
+          track_propagation_failed: meta.trackPropagationFailed ? true : false,
+          track_propagation_error: meta.trackPropagationError || null,
           stripe_cover_synced: stripeSyncResult && stripeSyncResult.synced ? true : false,
           stripe_product_id: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : null,
           stripe_sync_reason: stripeSyncResult && stripeSyncResult.reason ? stripeSyncResult.reason : null
@@ -367,6 +375,24 @@ async function uploadBufferToStorage(uploadedPath, fileBuffer, mimeType) {
 
 async function uploadToStorage(uploadedPath, fileBuffer, mimeType) {
   return uploadBufferToStorage(uploadedPath, fileBuffer, mimeType);
+}
+
+async function propagateAlbumCoverToTracks(albumId, publicUrl, socialPublicUrl) {
+  const { data, error } = await supabaseAdmin
+    .from('tracks')
+    .update({
+      cover_url: publicUrl,
+      social_cover_url: socialPublicUrl || publicUrl,
+      updated_at: new Date().toISOString()
+    })
+    .eq('album_id', albumId)
+    .select('id');
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data.length : 0;
 }
 
 function runTrackPostUploadTasks(admin, req, track, uploadedPath, publicUrl, socialUploadedPath, socialPublicUrl) {
@@ -471,15 +497,30 @@ async function handleAlbumCoverUpload(admin, req, res, payload) {
 
   const extension = ALLOWED_MIME_TYPES[payload.mimeType];
   const baseName = safeName(album.slug || album.title || payload.fileName);
-  const uploadedPath = `albums/${baseName}/cover-${Date.now()}.${extension}`;
+  const timestamp = Date.now();
+  const uploadedPath = `albums/${baseName}/cover-${timestamp}.${extension}`;
+  const socialUploadedPath = `albums/${baseName}/social-cover-${timestamp}.jpg`;
 
   let publicUrl;
+  let socialPublicUrl;
+  let socialGenerationFailed = false;
+  let propagatedTrackCount = 0;
+  let trackPropagationFailed = false;
+  let trackPropagationError = '';
 
   try {
     publicUrl = await uploadToStorage(uploadedPath, payload.fileBuffer, payload.mimeType);
   } catch (err) {
     console.error('Album cover upload failed:', err.message || err);
     return res.status(500).json({ error: 'Unable to upload album cover' });
+  }
+
+  try {
+    const socialBuffer = await createSocialCoverBuffer(payload.fileBuffer);
+    socialPublicUrl = await uploadBufferToStorage(socialUploadedPath, socialBuffer, 'image/jpeg');
+  } catch (err) {
+    socialGenerationFailed = true;
+    console.error('Album social cover generation failed:', err.message || err);
   }
 
   const stripeSyncResult = await syncStripeAlbumCover(album, publicUrl);
@@ -532,17 +573,40 @@ async function handleAlbumCoverUpload(admin, req, res, payload) {
     return res.status(500).json({ error: 'Unable to update album cover' });
   }
 
-  await writeAlbumAudit(admin, req, album, uploadedPath, publicUrl, stripeSyncResult);
+  try {
+    propagatedTrackCount = await propagateAlbumCoverToTracks(album.id, publicUrl, socialPublicUrl || publicUrl);
+  } catch (err) {
+    trackPropagationFailed = true;
+    trackPropagationError = err.message || String(err);
+    console.error('Album cover propagation to tracks failed:', err.message || err);
+  }
 
-  return res.status(200).json({
+  await writeAlbumAudit(admin, req, album, uploadedPath, publicUrl, stripeSyncResult, {
+    propagatedTrackCount,
+    socialPublicUrl: socialPublicUrl || publicUrl,
+    socialUploadedPath: socialPublicUrl ? socialUploadedPath : null,
+    socialGenerationFailed,
+    trackPropagationFailed,
+    trackPropagationError
+  });
+
+  const responsePayload = {
     ok: true,
     resourceType: 'album',
     coverUrl: publicUrl,
+    socialCoverUrl: socialPublicUrl || publicUrl,
     path: uploadedPath,
+    propagatedTrackCount,
     stripeCoverSynced: stripeSyncResult && stripeSyncResult.synced ? true : false,
     stripeProductId: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : updatedAlbum.stripe_product_id,
     album: updatedAlbum
-  });
+  };
+
+  if (socialPublicUrl) {
+    responsePayload.socialPath = socialUploadedPath;
+  }
+
+  return res.status(200).json(responsePayload);
 }
 
 module.exports = async function handler(req, res) {
