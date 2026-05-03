@@ -114,6 +114,7 @@ async function handleShareAlbum(req, res, shareParam) {
       release_year,
       release_date,
       cover_url,
+      social_cover_url,
       status,
       is_latest_release,
       description_short
@@ -139,7 +140,7 @@ async function handleShareAlbum(req, res, shareParam) {
   const redirectUrl = `${BASE_URL}${redirectPath}`;
   const title = formatTitle(album);
   const description = album.description_short || 'Complete album · AMNEUZ';
-  const image = absoluteUrl(album.cover_url);
+  const image = absoluteUrl(album.social_cover_url || album.cover_url);
   const type = imageType(image);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -326,6 +327,7 @@ function mapAlbum(album, albumTracks) {
     release: album.release_year ? String(album.release_year) : '',
     releaseDate: album.release_date,
     cover: album.cover_url,
+    socialCover: album.social_cover_url,
     spotify: album.spotify_url,
     soundcloud: album.soundcloud_url,
     appleMusic: album.apple_music_url,
@@ -405,6 +407,7 @@ async function getVisibleAlbums() {
       release_year,
       release_date,
       cover_url,
+      social_cover_url,
       spotify_url,
       soundcloud_url,
       apple_music_url,
