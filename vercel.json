@@ -54,6 +54,14 @@
 
       "destination": "/api/tracks?share=:track"
 
+    },
+
+    {
+
+      "source": "/a/:album",
+
+      "destination": "/api/tracks?albumShare=:album"
+
     }
 
   ]

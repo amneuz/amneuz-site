@@ -74,6 +74,17 @@ function shareCandidates(track) {
   });
 }
 
+function shareAlbumCandidates(album) {
+  return [
+    album.id,
+    album.slug,
+    slugify(album.title),
+    slugify(formatTitle(album))
+  ].filter(Boolean).map(function(value) {
+    return String(value).toLowerCase();
+  });
+}
+
 function noindexHtml() {
   return `<!doctype html>
 <html lang="en">
@@ -87,6 +98,89 @@ function noindexHtml() {
   <p>Track not found.</p>
 </body>
 </html>`;
+}
+
+async function handleShareAlbum(req, res, shareParam) {
+  const normalizedShare = String(shareParam || '').trim().toLowerCase();
+
+  const { data, error } = await supabaseAdmin
+    .from('albums')
+    .select(`
+      id,
+      slug,
+      title,
+      artist,
+      collaborators,
+      release_year,
+      release_date,
+      cover_url,
+      status,
+      is_latest_release,
+      description_short
+    `)
+    .or('status.eq.visible,and(status.eq.upcoming,is_latest_release.eq.true)');
+
+  if (error) {
+    throw error;
+  }
+
+  const album = (data || []).find(function(item) {
+    return shareAlbumCandidates(item).indexOf(normalizedShare) > -1;
+  });
+
+  if (!album) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(404).send(noindexHtml());
+  }
+
+  const deepLinkId = album.slug || album.id;
+  const shareUrl = `${BASE_URL}/a/${encodeURIComponent(deepLinkId)}`;
+  const redirectPath = `/?album=${encodeURIComponent(deepLinkId)}`;
+  const redirectUrl = `${BASE_URL}${redirectPath}`;
+  const title = formatTitle(album);
+  const description = album.description_short || 'Complete album · AMNEUZ';
+  const image = absoluteUrl(album.cover_url);
+  const type = imageType(image);
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=86400');
+
+  return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <meta property="og:type" content="music.album">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:image" content="${escapeHtml(image)}">
+
+  <meta property="og:image:secure_url" content="${escapeHtml(image)}">
+
+  <meta property="og:image:type" content="${escapeHtml(type)}">
+
+  <meta property="og:image:width" content="1200">
+
+  <meta property="og:image:height" content="1200">
+
+  <meta property="og:url" content="${escapeHtml(shareUrl)}">
+  <meta property="og:site_name" content="AMNEUZ">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+   <meta name="twitter:image" content="${escapeHtml(image)}">
+
+  <meta name="twitter:image:alt" content="Album cover artwork">
+
+  <link rel="canonical" href="${escapeHtml(shareUrl)}">
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}">
+  <script>window.location.replace('${escapeHtml(redirectPath)}');</script>
+</head>
+<body>
+  <p><a href="${escapeHtml(redirectPath)}">Open ${escapeHtml(title)}</a></p>
+</body>
+</html>`);
 }
 
 async function handleShareTrack(req, res, shareParam) {
@@ -342,6 +436,11 @@ module.exports = async function handler(req, res) {
 
   try {
     const shareParam = req.query && req.query.share ? String(req.query.share).trim() : '';
+    const albumShareParam = req.query && req.query.albumShare ? String(req.query.albumShare).trim() : '';
+
+    if (albumShareParam) {
+      return handleShareAlbum(req, res, albumShareParam);
+    }
 
     if (shareParam) {
       return handleShareTrack(req, res, shareParam);
