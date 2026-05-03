@@ -1136,6 +1136,7 @@ function albumRow(album){
       '<p class="track-quality">Complete album WAV</p>'+
       '<button class="tbtn addAlbumBtn" type="button"></button>'+
       '<button class="tbtn albumToggleBtn" type="button"></button>'+
+      '<button class="track-share album-share" type="button" aria-label="Copy album share link">Share</button>'+
     '</div>';
 
   wrap.querySelector('.album-cover').src=album.cover||(album.tracks[0]&&album.tracks[0].cover)||'';
@@ -1166,6 +1167,7 @@ function albumRow(album){
   var addBtn=wrap.querySelector('.addAlbumBtn');
   var toggleBtn=wrap.querySelector('.albumToggleBtn');
   var list=wrap.querySelector('.album-track-list');
+  var shareBtn=wrap.querySelector('.album-share');
 
   addBtn.textContent=added?'Album Added':'Add Album';
   addBtn.classList.toggle('added',added);
@@ -1192,6 +1194,11 @@ function albumRow(album){
 
     renderCart();
     renderCatalog(activeCat());
+  };
+
+  shareBtn.onclick=function(e){
+    e.stopPropagation();
+    copyShareLink(album,shareBtn);
   };
 
   toggleBtn.onclick=function(e){
@@ -1368,41 +1375,6 @@ function renderNextRelease(){
   var priceEl=document.createElement('p');
   var quality=document.createElement('p');
   var add=document.createElement('button');
-  var share = document.createElement('button');
-
-share.className = 'track-share next-release-share';
-
-share.type = 'button';
-
-share.textContent = 'Share';
-
-share.onclick = function(e){
-
-  e.stopPropagation();
-
-  var id = item.slug || item.catalogCode || item.id;
-
-  var url = 'https://www.amneuz.com/t/' + encodeURIComponent(id);
-
-  if(navigator.clipboard){
-
-    navigator.clipboard.writeText(url);
-
-    share.textContent = 'Copied';
-
-    setTimeout(function(){
-
-      share.textContent = 'Share';
-
-    }, 1200);
-
-  } else {
-
-    window.prompt('Copy link:', url);
-
-  }
-
-};
   var share=document.createElement('button');
   var releaseDate=item.releaseDate||previewTrack.releaseDate||'';
   var hasDate=!!releaseDate;
