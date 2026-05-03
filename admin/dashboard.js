@@ -103,7 +103,7 @@ async function logout(action) {
   } catch (err) {}
 
   window.localStorage.removeItem(ACTIVITY_KEY);
-  window.location.replace('./');
+  window.location.replace('/admin/');
 }
 
 function scheduleSessionCheck() {
@@ -3235,7 +3235,7 @@ async function verifyAdmin() {
   const { data } = await supabaseClient.auth.getSession();
 
   if (!data || !data.session) {
-    window.location.replace('./');
+    window.location.replace('/admin/');
     return;
   }
 

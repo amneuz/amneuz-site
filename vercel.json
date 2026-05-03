@@ -46,6 +46,20 @@
 
   ],
 
+  "redirects": [
+
+    {
+
+      "source": "/admin",
+
+      "destination": "/admin/",
+
+      "permanent": true
+
+    }
+
+  ],
+
   "rewrites": [
 
     {

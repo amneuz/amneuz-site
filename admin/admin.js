@@ -167,7 +167,7 @@ async function checkExistingSession() {
 
     setStatus('Admin session active. Redirecting...', 'ok');
 
-    window.location.replace('./dashboard.html');
+    window.location.replace('/admin/dashboard.html');
 
   } catch (err) {
 
@@ -233,7 +233,7 @@ loginForm.addEventListener('submit', async function(event) {
 
     setStatus('Access confirmed. Redirecting...', 'ok');
 
-    window.location.replace('./dashboard.html');
+    window.location.replace('/admin/dashboard.html');
 
   } catch (err) {
 
