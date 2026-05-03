@@ -450,6 +450,7 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
 
   const updatePayload = {
     cover_url: publicUrl,
+    social_cover_url: socialPublicUrl || publicUrl,
     updated_at: new Date().toISOString()
   };
 
