@@ -175,6 +175,8 @@ function mapAlbum(album) {
     releaseDate: album.release_date,
     coverUrl: publicAssetUrl(album.cover_url),
     rawCoverUrl: album.cover_url,
+    socialCoverUrl: publicAssetUrl(album.social_cover_url),
+    rawSocialCoverUrl: album.social_cover_url,
     descriptionShort: album.description_short,
     descriptionLong: album.description_long,
     status: album.status,
@@ -567,6 +569,7 @@ async function listAlbums(res) {
       release_year,
       release_date,
       cover_url,
+      social_cover_url,
 
 soundcloud_url,
 
@@ -618,6 +621,7 @@ async function getAlbumById(id) {
       release_year,
       release_date,
       cover_url,
+      social_cover_url,
 
 soundcloud_url,
 
@@ -1040,6 +1044,7 @@ stripe_price_id: stripeResult.price.id
         release_year,
         release_date,
         cover_url,
+        social_cover_url,
 
 soundcloud_url,
 
@@ -1202,6 +1207,7 @@ updated_at: new Date().toISOString()
       release_year,
       release_date,
       cover_url,
+      social_cover_url,
 
 soundcloud_url,
 

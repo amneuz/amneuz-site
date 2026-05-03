@@ -107,6 +107,7 @@ async function getAlbum(id) {
       collaborators,
       release_type,
       cover_url,
+      social_cover_url,
       stripe_product_id,
       stripe_price_id,
       description_short
@@ -527,6 +528,7 @@ async function handleAlbumCoverUpload(admin, req, res, payload) {
 
   const updatePayload = {
     cover_url: publicUrl,
+    social_cover_url: socialPublicUrl || publicUrl,
     updated_at: new Date().toISOString()
   };
 
@@ -548,6 +550,7 @@ async function handleAlbumCoverUpload(admin, req, res, payload) {
       release_year,
       release_date,
       cover_url,
+      social_cover_url,
       soundcloud_url,
       spotify_url,
       apple_music_url,

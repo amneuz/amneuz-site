@@ -1798,7 +1798,8 @@ function renderAlbums(albums) {
       `<span class="admin-tag">${escapeHtml(releaseTypeLabel(album.releaseType))}</span>`,
       album.isFeatured ? '<span class="admin-tag">Featured</span>' : '',
       album.isLatestRelease ? '<span class="admin-tag">Latest release</span>' : '',
-      album.stripePriceId ? '<span class="admin-tag">Stripe linked</span>' : '<span class="admin-tag hidden">No Stripe</span>'
+      album.stripePriceId ? '<span class="admin-tag">Stripe linked</span>' : '<span class="admin-tag hidden">No Stripe</span>',
+      album.socialCoverUrl ? '<span class="admin-tag">Social cover linked</span>' : '<span class="admin-tag hidden">No social cover</span>'
     ].filter(Boolean).join('');
 
     return `
@@ -2159,6 +2160,7 @@ async function openAlbumModal(albumId) {
           ${detailField('Stripe Product ID', album.stripeProductId, true)}
           ${detailField('Stripe Price ID', album.stripePriceId, true)}
           ${detailField('Cover URL', album.rawCoverUrl || album.coverUrl, true)}
+          ${detailField('Social Cover URL', album.rawSocialCoverUrl || album.socialCoverUrl, true)}
 
           ${editableInput('SoundCloud URL', 'albumSoundcloudInput', album.soundcloudUrl, 'url', true)}
           ${editableInput('Spotify URL', 'albumSpotifyInput', album.spotifyUrl, 'url', true)}
@@ -2827,6 +2829,8 @@ async function uploadAlbumCoverFile(file) {
 
     activeAlbumForSave.coverUrl = data.coverUrl;
     activeAlbumForSave.rawCoverUrl = data.coverUrl;
+    activeAlbumForSave.socialCoverUrl = data.socialCoverUrl;
+    activeAlbumForSave.rawSocialCoverUrl = data.socialCoverUrl;
 
     setSaveStatus('Album cover uploaded.', 'ok');
     setFooterButtonToClose();
