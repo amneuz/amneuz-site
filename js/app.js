@@ -29,14 +29,23 @@ function price(t){return Number(t.priceMxn||displayPrices[t.id]||0)}
 function money(n){return '$'+Number(n||0).toFixed(0)+' MXN'}
 function activeCat(){var a=document.querySelector('.tab.active');return a?a.getAttribute('data-cat'):'remixes'}
 function getTrackParam(){return new URLSearchParams(window.location.search).get('track')}
+function getAlbumParam(){return new URLSearchParams(window.location.search).get('album')}
 function slugify(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
 
 function shareId(item){
   return item.slug||item.catalogCode||item.id;
 }
 
+function isAlbumItem(item){
+  return !!(item&&(
+    item.releaseType||
+    Array.isArray(item.tracks)
+  ));
+}
+
 function shareUrl(item){
-  return 'https://www.amneuz.com/t/'+encodeURIComponent(shareId(item));
+  var path=isAlbumItem(item)?'/a/':'/t/';
+  return 'https://www.amneuz.com'+path+encodeURIComponent(shareId(item));
 }
 
 function createShareButton(className){
@@ -129,6 +138,18 @@ function findTrackByParam(value){
       String(t.catalogCode||'').toLowerCase()===raw.toLowerCase()||
       getTrackSlugCandidates(t).indexOf(slug)>-1
   })
+}
+
+function findAlbumByParam(value){
+  var raw=String(value||'');
+  var slug=slugify(raw);
+
+  return albums.find(function(a){
+    return String(a.id)===raw||
+      String(a.slug||'').toLowerCase()===raw.toLowerCase()||
+      slugify(a.title)===slug||
+      slugify(a.rawTitle)===slug;
+  });
 }
 
 function clearDeepLinkHighlight(){
@@ -282,6 +303,7 @@ function setTracksFromData(data){
   renderCatalog(activeCat());
   renderCart();
   openTrackDeepLink();
+  openAlbumDeepLink();
 }
 
 function loadTracks(){
@@ -393,7 +415,7 @@ function enter(withSound){
 function skipIntro(){
   var p=new URLSearchParams(window.location.search);
 
-  if(p.get('skipIntro')!=='true'&&!getTrackParam())return;
+  if(p.get('skipIntro')!=='true'&&!getTrackParam()&&!getAlbumParam())return;
 
   document.body.classList.add('site-entered');
 
@@ -451,6 +473,37 @@ function openTrackDeepLink(){
     row.scrollIntoView({behavior:'smooth',block:'center'});
     row.classList.add('track-deeplink');
   })
+}
+
+function openAlbumDeepLink(){
+  var albumParam=getAlbumParam();
+
+  if(!albumParam)return;
+
+  var target=findAlbumByParam(albumParam);
+
+  if(!target)return;
+
+  enter(false);
+
+  if(openAlbumIds.indexOf(target.id)===-1){
+    openAlbumIds.push(target.id);
+  }
+
+  all('.tab').forEach(function(tab){
+    tab.classList.toggle('active',tab.getAttribute('data-cat')==='album');
+  });
+
+  renderCatalog('album');
+
+  window.requestAnimationFrame(function(){
+    var row=document.querySelector('.album-release[data-album-id="'+target.id+'"]');
+
+    if(!row)return;
+
+    row.scrollIntoView({behavior:'smooth',block:'center'});
+    row.classList.add('track-deeplink');
+  });
 }
 
 function isCurrentNextReleaseTrack(track){
