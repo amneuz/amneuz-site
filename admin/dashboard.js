@@ -1744,7 +1744,8 @@ function renderTracks(tracks) {
       track.isLatestRelease ? '<span class="admin-tag">Latest release</span>' : '',
       track.stripePriceId ? '<span class="admin-tag">Stripe linked</span>' : '<span class="admin-tag hidden">No Stripe</span>',
       track.masterPath ? '<span class="admin-tag">Master linked</span>' : '<span class="admin-tag hidden">No master</span>',
-      track.previewUrl ? '<span class="admin-tag">Preview linked</span>' : '<span class="admin-tag hidden">No preview</span>'
+      track.previewUrl ? '<span class="admin-tag">Preview linked</span>' : '<span class="admin-tag hidden">No preview</span>',
+      track.socialCoverUrl ? '<span class="admin-tag">Social cover linked</span>' : '<span class="admin-tag hidden">No social cover</span>'
     ].filter(Boolean).join('');
 
     return `
@@ -2282,6 +2283,7 @@ async function openTrackModal(trackId) {
           ${detailField('Master Path', track.masterPath, true)}
           ${detailField('Filename', track.filename, true)}
           ${detailField('Cover URL', track.rawCoverUrl || track.coverUrl, true)}
+          ${detailField('Social Cover URL', track.rawSocialCoverUrl || track.socialCoverUrl, true)}
           ${detailField('Preview URL', track.rawPreviewUrl || track.previewUrl, true)}
 
           ${editableInput('SoundCloud URL', 'soundcloudUrlInput', track.soundcloudUrl, 'url', true)}
@@ -2900,6 +2902,8 @@ async function uploadCoverFile(file) {
 
     activeTrackForSave.coverUrl = data.coverUrl;
     activeTrackForSave.rawCoverUrl = data.coverUrl;
+    activeTrackForSave.socialCoverUrl = data.socialCoverUrl;
+    activeTrackForSave.rawSocialCoverUrl = data.socialCoverUrl;
 
     setSaveStatus('Cover uploaded.', 'ok');
     setFooterButtonToClose();

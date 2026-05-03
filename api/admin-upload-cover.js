@@ -1,4 +1,5 @@
 const Stripe = require('stripe');
+const sharp = require('sharp');
 const { requireAdmin, supabaseAdmin, getRequestIp } = require('./_adminAuth');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -261,7 +262,7 @@ async function syncStripeAlbumCover(album, publicUrl) {
   }
 }
 
-async function writeTrackAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult) {
+async function writeTrackAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult, socialUploadedPath, socialPublicUrl) {
   try {
     await supabaseAdmin
       .from('admin_audit_logs')
@@ -281,6 +282,9 @@ async function writeTrackAudit(admin, req, track, uploadedPath, publicUrl, strip
           title: track.title,
           uploaded_path: uploadedPath,
           public_url: publicUrl,
+          social_uploaded_path: socialUploadedPath,
+          social_public_url: socialPublicUrl,
+          social_cover_generated: true,
           stripe_cover_synced: stripeSyncResult && stripeSyncResult.synced ? true : false,
           stripe_product_id: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : null,
           stripe_sync_reason: stripeSyncResult && stripeSyncResult.reason ? stripeSyncResult.reason : null
@@ -322,7 +326,23 @@ async function writeAlbumAudit(admin, req, album, uploadedPath, publicUrl, strip
   }
 }
 
-async function uploadToStorage(uploadedPath, fileBuffer, mimeType) {
+async function createSocialCoverBuffer(fileBuffer) {
+  return sharp(fileBuffer)
+    .rotate()
+    .resize(1200, 1200, {
+      fit: 'cover',
+      position: 'centre'
+    })
+    .flatten({ background: '#050505' })
+    .jpeg({
+      quality: 82,
+      progressive: true,
+      mozjpeg: true
+    })
+    .toBuffer();
+}
+
+async function uploadBufferToStorage(uploadedPath, fileBuffer, mimeType) {
   const { error } = await supabaseAdmin
     .storage
     .from('covers')
@@ -344,6 +364,10 @@ async function uploadToStorage(uploadedPath, fileBuffer, mimeType) {
   return publicUrl;
 }
 
+async function uploadToStorage(uploadedPath, fileBuffer, mimeType) {
+  return uploadBufferToStorage(uploadedPath, fileBuffer, mimeType);
+}
+
 async function handleTrackCoverUpload(admin, req, res, payload) {
   const track = await getTrack(payload.trackId);
 
@@ -353,12 +377,17 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
 
   const extension = ALLOWED_MIME_TYPES[payload.mimeType];
   const baseName = safeName(track.catalog_code || track.slug || track.title || payload.fileName);
-  const uploadedPath = `${baseName}/cover-${Date.now()}.${extension}`;
+  const timestamp = Date.now();
+  const uploadedPath = `${baseName}/cover-${timestamp}.${extension}`;
+  const socialUploadedPath = `${baseName}/social-cover-${timestamp}.jpg`;
 
   let publicUrl;
+  let socialPublicUrl;
 
   try {
     publicUrl = await uploadToStorage(uploadedPath, payload.fileBuffer, payload.mimeType);
+    const socialBuffer = await createSocialCoverBuffer(payload.fileBuffer);
+    socialPublicUrl = await uploadBufferToStorage(socialUploadedPath, socialBuffer, 'image/jpeg');
   } catch (err) {
     console.error('Track cover upload failed:', err.message || err);
     return res.status(500).json({ error: 'Unable to upload cover' });
@@ -368,6 +397,7 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
 
   const updatePayload = {
     cover_url: publicUrl,
+    social_cover_url: socialPublicUrl,
     updated_at: new Date().toISOString()
   };
 
@@ -379,7 +409,7 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
     .from('tracks')
     .update(updatePayload)
     .eq('id', payload.trackId)
-    .select('id, catalog_code, title, cover_url, stripe_product_id')
+    .select('id, catalog_code, title, cover_url, social_cover_url, stripe_product_id')
     .single();
 
   if (updateError || !updatedTrack) {
@@ -387,13 +417,15 @@ async function handleTrackCoverUpload(admin, req, res, payload) {
     return res.status(500).json({ error: 'Unable to update track cover' });
   }
 
-  await writeTrackAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult);
+  await writeTrackAudit(admin, req, track, uploadedPath, publicUrl, stripeSyncResult, socialUploadedPath, socialPublicUrl);
 
   return res.status(200).json({
     ok: true,
     resourceType: 'track',
     coverUrl: publicUrl,
+    socialCoverUrl: socialPublicUrl,
     path: uploadedPath,
+    socialPath: socialUploadedPath,
     stripeCoverSynced: stripeSyncResult && stripeSyncResult.synced ? true : false,
     stripeProductId: stripeSyncResult && stripeSyncResult.stripe_product_id ? stripeSyncResult.stripe_product_id : updatedTrack.stripe_product_id,
     track: updatedTrack
