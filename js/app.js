@@ -44,7 +44,12 @@ function createShareButton(className){
   button.className='track-share-icon '+(className||'');
   button.type='button';
   button.setAttribute('aria-label','Copy share link');
-  button.innerHTML='<span aria-hidden="true">↗</span>';
+  button.innerHTML=
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+      '<path d="M12 3v12"></path>'+
+      '<path d="M7 8l5-5 5 5"></path>'+
+      '<path d="M5 13v6h14v-6"></path>'+
+    '</svg>';
   return button;
 }
 
@@ -1145,12 +1150,18 @@ function albumRow(album){
       '<p class="track-quality">Complete album WAV</p>'+
       '<button class="tbtn addAlbumBtn" type="button"></button>'+
       '<button class="tbtn albumToggleBtn" type="button"></button>'+
-      '<button class="track-share-icon album-share-icon" type="button" aria-label="Copy album share link"><span aria-hidden="true">↗</span></button>'+
     '</div>';
 
   wrap.querySelector('.album-cover').src=album.cover||(album.tracks[0]&&album.tracks[0].cover)||'';
   wrap.querySelector('.album-cover').alt=album.title;
   wrap.querySelector('.ttitle').textContent=album.title;
+  var albumTitleRow=wrap.querySelector('.track-title-row');
+  var albumShare=createShareButton('album-title-share');
+
+  if(albumTitleRow){
+    albumTitleRow.appendChild(albumShare);
+  }
+
   wrap.querySelector('.album-meta').textContent=metaText;
   wrap.querySelector('.album-description').textContent=album.descriptionShort||'Buy the complete release or open it to choose individual tracks.';
   wrap.querySelector('.album-price').textContent=money(price(album));
@@ -1176,7 +1187,6 @@ function albumRow(album){
   var addBtn=wrap.querySelector('.addAlbumBtn');
   var toggleBtn=wrap.querySelector('.albumToggleBtn');
   var list=wrap.querySelector('.album-track-list');
-  var shareBtn=wrap.querySelector('.album-share-icon');
 
   addBtn.textContent=added?'Album Added':'Add Album';
   addBtn.classList.toggle('added',added);
@@ -1205,9 +1215,9 @@ function albumRow(album){
     renderCatalog(activeCat());
   };
 
-  shareBtn.onclick=function(e){
+  albumShare.onclick=function(e){
     e.stopPropagation();
-    copyShareLink(album,shareBtn);
+    copyShareLink(album,albumShare);
   };
 
   toggleBtn.onclick=function(e){
