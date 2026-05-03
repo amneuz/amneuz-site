@@ -2240,3 +2240,66 @@
     height: 18px;
   }
 }
+
+/* FINAL SHARE ICON SIZE TWEAK */
+.track-share-icon {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+}
+
+.track-share-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.next-release-cover-share {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+}
+
+.next-release-cover-share svg {
+  width: 23px;
+  height: 23px;
+}
+
+.album-track-share-icon {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+}
+
+.album-track-share-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media(max-width:560px) {
+  .track-share-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+  }
+
+  .track-share-icon svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .next-release-cover-share {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .next-release-cover-share svg {
+    width: 22px;
+    height: 22px;
+  }
+}
